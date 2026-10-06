@@ -5,7 +5,7 @@
  *   cost?, duration_ms?, timestamp }
  *
  * Known types map to a building in the village. Unknown types are passed
- * through so the client can route them to the Mystery Hut.
+ * through so the client can route them to the Incident Room.
  */
 
 export const KNOWN_TYPES = [
@@ -18,6 +18,9 @@ export const KNOWN_TYPES = [
   "approval",
   "done",
   "token_usage",
+  "security_check",
+  "debug",
+  "ship",
 ] as const;
 
 export type KnownAgentEventType = (typeof KNOWN_TYPES)[number];

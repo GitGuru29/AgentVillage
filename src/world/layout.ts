@@ -1,20 +1,23 @@
 /**
  * Village layout: where buildings sit, their footprints, doors,
- * dirt-path corridors and the idle camp. Pure data — no three.js,
+ * walkway corridors and the idle camp. Pure data — no three.js,
  * so tests and the nav grid can share it.
  */
 
 export type BuildingKey =
-  | "townHall"
-  | "library"
-  | "forge"
-  | "barracks"
-  | "archery"
-  | "goldMine"
-  | "elixir"
-  | "trophyHall"
-  | "clockTower"
-  | "mystery";
+  | "command"
+  | "docs"
+  | "devfloor"
+  | "ops"
+  | "qa"
+  | "racks"
+  | "power"
+  | "release"
+  | "noc"
+  | "incident"
+  | "gate"
+  | "debug"
+  | "dock";
 
 export interface BuildingSpec {
   key: BuildingKey;
@@ -29,44 +32,65 @@ export interface BuildingSpec {
 }
 
 export const BUILDINGS: readonly BuildingSpec[] = [
-  { key: "townHall", x: 0, z: 0, w: 8, d: 8, doorX: 0, doorZ: 5.4 },
-  { key: "library", x: -17, z: -6, w: 6, d: 5, doorX: -17, doorZ: -2.3 },
-  { key: "forge", x: 17, z: -6, w: 6, d: 5, doorX: 17, doorZ: -2.3 },
-  { key: "barracks", x: -13, z: 13, w: 6, d: 5, doorX: -13, doorZ: 16.3 },
-  { key: "archery", x: 13, z: 13, w: 7, d: 5, doorX: 13, doorZ: 16.3 },
-  { key: "goldMine", x: -9.5, z: -15.5, w: 7, d: 6, doorX: -9.5, doorZ: -11.9 },
-  { key: "elixir", x: 9.5, z: -15.5, w: 7, d: 6, doorX: 9.5, doorZ: -11.9 },
-  { key: "trophyHall", x: 0, z: -15.5, w: 6, d: 5, doorX: 0, doorZ: -11.9 },
-  { key: "mystery", x: -20.5, z: 2, w: 5, d: 5, doorX: -16.9, doorZ: 2 },
-  { key: "clockTower", x: 20.5, z: 2, w: 5, d: 6, doorX: 16.9, doorZ: 2 },
+  { key: "command", x: 0, z: 0, w: 8, d: 8, doorX: 0, doorZ: 5.4 },
+  { key: "docs", x: -17, z: -6, w: 6, d: 5, doorX: -17, doorZ: -2.3 },
+  { key: "devfloor", x: 17, z: -6, w: 6, d: 5, doorX: 17, doorZ: -2.3 },
+  { key: "ops", x: -13, z: 13, w: 6, d: 5, doorX: -13, doorZ: 16.3 },
+  { key: "qa", x: 13, z: 13, w: 7, d: 5, doorX: 13, doorZ: 16.3 },
+  { key: "racks", x: -9.5, z: -15.5, w: 7, d: 6, doorX: -9.5, doorZ: -11.9 },
+  { key: "power", x: 9.5, z: -15.5, w: 7, d: 6, doorX: 9.5, doorZ: -11.9 },
+  { key: "release", x: 0, z: -15.5, w: 6, d: 5, doorX: 0, doorZ: -11.9 },
+  { key: "incident", x: -20.5, z: 2, w: 5, d: 5, doorX: -16.9, doorZ: 2 },
+  { key: "noc", x: 20.5, z: 2, w: 5, d: 6, doorX: 16.9, doorZ: 2 },
+  { key: "gate", x: -19.5, z: 12.5, w: 5, d: 5, doorX: -19.5, doorZ: 16.5 },
+  { key: "debug", x: 18.5, z: -13, w: 5, d: 5, doorX: 18.5, doorZ: -9.5 },
+  { key: "dock", x: 20, z: 12, w: 5, d: 4, doorX: 20, doorZ: 15.5 },
 ];
 
-/** Plaza knot every dirt path leads to. */
+/** Plaza knot every walkway leads to. */
 export const PLAZA = { x: 0, z: 7.5 } as const;
 
 /** Where builders idle / wander when they have no task. */
 export const IDLE_CAMP = { x: 0, z: 11, radius: 3.6 } as const;
 
 /**
- * Dirt corridors. Doors normally walk a straight shot to the plaza, but the
- * north row (gold mine, elixir, trophies) sits behind the Town Hall — those
- * take an elbow through the east/west corridors instead.
+ * Walkway corridors. Doors normally walk a straight shot to the plaza, but
+ * the north row (racks, power, release) sits behind the Command Center —
+ * those take an elbow through the east/west corridors instead. The three
+ * outer buildings (gate, debug, dock) elbow around their neighbours.
  */
 const ROUTES: Partial<Record<BuildingKey, Array<[number, number]>>> = {
-  goldMine: [
+  racks: [
     [-9.5, -11.9],
     [-9.5, 5.5],
     [0, 7.5],
   ],
-  elixir: [
+  power: [
     [9.5, -11.9],
     [9.5, 5.5],
     [0, 7.5],
   ],
-  trophyHall: [
+  release: [
     [0, -11.9],
     [5, -11.9],
     [5, 5.5],
+    [0, 7.5],
+  ],
+  gate: [
+    [-19.5, 16.5],
+    [-5, 17.5],
+    [0, 7.5],
+  ],
+  debug: [
+    [18.5, -9.5],
+    [11, -9.5],
+    [11, 5.5],
+    [0, 7.5],
+  ],
+  dock: [
+    [20, 15.5],
+    [17, 15.5],
+    [17, 7.5],
     [0, 7.5],
   ],
 };
@@ -84,7 +108,7 @@ export function pathSegments(): Array<[[number, number], [number, number]]> {
 }
 
 /**
- * Perimeter wall ring — a chamfered rectangle (octagon):
+ * Perimeter firewall — a chamfered rectangle (octagon):
  * |x| ≤ 24, |z| ≤ 20, corners cut where |x| + |z| > 38.
  */
 export const WALL_HALF_W = 24;
@@ -104,7 +128,7 @@ export const WALLS: ReadonlyArray<{ ax: number; az: number; bx: number; bz: numb
   { ax: -24, az: -14, bx: -18, bz: -20 },
 ];
 
-/** True when (x,z) lies inside the wall ring (grown by `margin`). */
+/** True when (x,z) lies inside the firewall ring (grown by `margin`). */
 export function insideWall(x: number, z: number, margin = 0): boolean {
   const ax = Math.abs(x);
   const az = Math.abs(z);
@@ -116,22 +140,24 @@ export function insideWall(x: number, z: number, margin = 0): boolean {
 }
 
 export const PALETTE = {
-  grassA: "#6cb84a",
-  grassB: "#5faa42",
-  grassC: "#77c455",
-  dirt: "#b9885a",
-  stone: "#9aa6b8",
-  cream: "#f0e0c2",
-  roofRed: "#e05252",
-  roofBlue: "#4a7fd0",
-  roofRust: "#a8412c",
+  // data-center floor
+  floorA: "#1a2029",
+  floorB: "#1e2634",
+  floorC: "#222b3c",
+  walkway: "#38455c",
+  // structure
+  metal: "#8f9bb3",
+  panelDark: "#2a3242",
+  panelMid: "#39435a",
+  shell: "#dfe6f2",
+  // accents
+  amber: "#ffb84d",
+  teal: "#4fe3c1",
+  screen: "#7ef0ff",
+  alertRed: "#e05252",
+  passGreen: "#4fd67a",
+  failRed: "#d0342c",
+  forgeFire: "#ff7a2f",
   wood: "#c9954e",
   darkWood: "#7a5230",
-  gold: "#ffd23f",
-  elixir: "#c86dd7",
-  glowCode: "#7ef0ff",
-  forgeFire: "#ff7a2f",
-  flagGreen: "#4fd67a",
-  failRed: "#d0342c",
-  visorOn: "#8ef0c0",
 } as const;

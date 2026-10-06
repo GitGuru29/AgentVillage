@@ -22,24 +22,30 @@ export interface BuildingInstance {
   footprint: { x0: number; z0: number; x1: number; z1: number };
   door: { x: number; z: number };
   update(dt: number, elapsed: number): void;
-  /** Town Hall glow while planning (also used for celebrations). */
+  /** Command Center: screens flare while planning (also celebrations). */
   pulse?(duration?: number): void;
-  /** Library: a book flies out onto the reading pile. */
-  spawnBook?(): void;
-  /** Forge: glowing code brick arcs onto this agent's tower. */
-  launchBrick?(agentId: string): void;
-  /** Forge: tower collapses when its task completes. */
+  /** Docs Archive: a document card flies out onto the pile. */
+  spawnDoc?(): void;
+  /** Dev Floor: glowing code cube arcs onto this agent's stack. */
+  pushCode?(agentId: string): void;
+  /** Dev Floor: stack collapses when its task completes. */
   resetStack?(agentId: string): void;
-  /** Barracks: a tool unit marches out and returns. */
-  marchUnit?(tool: string, durationMs: number): void;
-  /** Archery Range: green flag (pass) or cannonball crater (fail). */
+  /** Ops Bench: a CLI bot marches out and returns. */
+  runTool?(tool: string, durationMs: number): void;
+  /** QA Lab: green flag (pass) or scorch crater (fail). */
   testResult?(pass: boolean): void;
-  /** Gold Mine: coin shower for token usage. */
-  mineGold?(amount: number): void;
-  /** Elixir Collector: bubbles rise for every dollar spent. */
-  collect?(cost: number): void;
-  /** Trophy Hall: a trophy lands on the shelf. */
-  addTrophy?(): void;
+  /** Compute Cluster: data packets shower onto the heap per token batch. */
+  rackLoad?(amount: number): void;
+  /** Power & Billing: meter needle jumps for every dollar spent. */
+  meterSpike?(cost: number): void;
+  /** Release Wall: a version plaque lands on the board. */
+  logRelease?(): void;
+  /** Security Gate: barrier arm raises for a badge scan. */
+  scanBadge?(): void;
+  /** Debug Bay: breakpoints light up and the bug gets squashed. */
+  debugBreak?(): void;
+  /** Ship Dock: a cargo container loads onto the stack. */
+  launchCargo?(): void;
 }
 
 type Opts = MeshStandardMaterialParameters;
@@ -161,53 +167,59 @@ function footprintOf(spec: BuildingSpec): BuildingInstance["footprint"] {
 }
 
 // ---------------------------------------------------------------------------
-// Town Hall — the orchestrator. Glows while planning.
+// Command Center — the orchestrator. Screens flare while planning.
 // ---------------------------------------------------------------------------
-function createTownHall(spec: BuildingSpec): BuildingInstance {
+function createCommand(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "townHall";
+  g.name = "command";
   g.position.set(spec.x, 0, spec.z);
 
-  const base = box(8, 1.4, 8, PALETTE.stone);
-  base.position.y = 0.7;
+  const base = box(8, 1.0, 8, PALETTE.panelMid);
+  base.position.y = 0.5;
   g.add(base);
 
-  const walls = box(6.6, 3.2, 6.6, PALETTE.cream);
-  walls.position.y = 3.0;
-  g.add(walls);
+  const body = box(6.6, 3.4, 6.6, PALETTE.panelDark);
+  body.position.y = 2.7;
+  g.add(body);
 
-  const roof = pyramid(5.4, 3, PALETTE.roofRed);
-  roof.position.y = 6.1;
-  g.add(roof);
+  const roofSlab = box(7.2, 0.5, 7.2, PALETTE.metal);
+  roofSlab.position.y = 4.65;
+  g.add(roofSlab);
 
-  const door = box(1.6, 2.2, 0.35, PALETTE.darkWood);
-  door.position.set(0, 2.5, 3.4);
+  const door = box(1.6, 2.2, 0.35, PALETTE.panelMid);
+  door.position.set(0, 2.1, 3.4);
   g.add(door);
 
-  const trimMat = mat(PALETTE.gold, { emissive: PALETTE.gold, emissiveIntensity: 0.15 });
-  const trim = new Mesh(new BoxGeometry(6.8, 0.34, 6.8), trimMat);
-  trim.position.y = 4.55;
-  g.add(trim);
-
-  const winMat = mat("#2b3244", { emissive: "#ffd873", emissiveIntensity: 0.15 });
-  for (const x of [-1.9, 1.9]) {
-    const w = new Mesh(new BoxGeometry(1.0, 1.0, 0.25), winMat);
-    w.position.set(x, 3.2, 3.4);
-    g.add(w);
+  // screen wall on the south face
+  const screenFrame = box(6.2, 1.8, 0.12, "#111726");
+  screenFrame.position.set(0, 3.1, 3.34);
+  g.add(screenFrame);
+  const screenMat = mat("#0d1420", { emissive: PALETTE.screen, emissiveIntensity: 0.5 });
+  for (const x of [-2.1, -0.7, 0.7, 2.1]) {
+    const s = new Mesh(new BoxGeometry(1.2, 1.4, 0.18), screenMat);
+    s.position.set(x, 3.1, 3.42);
+    g.add(s);
   }
 
-  const pole = cylinder(0.07, 0.07, 2.0, "#d8d8e0");
-  pole.position.y = 8.5;
-  g.add(pole);
-  const flag = box(1.2, 0.7, 0.08, PALETTE.gold);
-  flag.position.set(0.66, 9.1, 0);
-  g.add(flag);
+  // status strip along the base + rooftop antenna beacon
+  const stripMat = mat("#0d1420", { emissive: PALETTE.amber, emissiveIntensity: 0.3 });
+  const strip = new Mesh(new BoxGeometry(6.4, 0.18, 0.1), stripMat);
+  strip.position.set(0, 1.2, 3.44);
+  g.add(strip);
+
+  const mast = cylinder(0.06, 0.06, 2.2, "#59617a");
+  mast.position.y = 5.9;
+  g.add(mast);
+  const beaconMat = mat(PALETTE.alertRed, { emissive: PALETTE.alertRed, emissiveIntensity: 1.2 });
+  const beacon = new Mesh(new SphereGeometry(0.16, 8, 6), beaconMat);
+  beacon.position.y = 7.05;
+  g.add(beacon);
 
   let glowT = 0;
-  let glowLevel = 0.15;
+  let glowLevel = 0.5;
 
   return {
-    key: "townHall",
+    key: "command",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
@@ -216,87 +228,93 @@ function createTownHall(spec: BuildingSpec): BuildingInstance {
     },
     update(dt, elapsed) {
       glowT = Math.max(0, glowT - dt);
-      const target = glowT > 0 ? 1.5 + 0.6 * Math.sin(elapsed * 7) : 0.15;
+      const target = glowT > 0 ? 1.6 + 0.6 * Math.sin(elapsed * 7) : 0.5;
       glowLevel += (target - glowLevel) * Math.min(1, dt * 8);
-      winMat.emissiveIntensity = glowLevel;
-      trimMat.emissiveIntensity = glowLevel * 0.8;
-      flag.rotation.z = Math.sin(elapsed * 2.4) * 0.12;
+      screenMat.emissiveIntensity = glowLevel;
+      stripMat.emissiveIntensity = 0.3 + glowLevel * 0.4;
+      beaconMat.emissiveIntensity = 1.0 + 0.6 * Math.sin(elapsed * 3.1);
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Library — file reads/searches. Books pop out onto a reading pile.
+// Docs Archive — file reads/searches. Document cards pop onto a pile.
 // ---------------------------------------------------------------------------
-const BOOK_COLORS = ["#e05252", "#4fc3f7", "#ffd23f", "#8bd450", "#b388ff", "#ff8a3d"];
+const DOC_COLORS = ["#e05252", "#4fc3f7", "#ffd23f", "#8bd450", "#b388ff", "#ff8a3d"];
 
-function createLibrary(spec: BuildingSpec): BuildingInstance {
+function createDocs(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "library";
+  g.name = "docs";
   g.position.set(spec.x, 0, spec.z);
 
-  const skirt = box(6.4, 0.4, 5.4, PALETTE.stone);
+  const skirt = box(6.4, 0.4, 5.4, PALETTE.metal);
   skirt.position.y = 0.2;
   g.add(skirt);
 
-  const walls = box(6, 2.6, 5, "#e8dcc0");
-  walls.position.y = 1.7;
+  const walls = box(6, 2.8, 5, PALETTE.panelMid);
+  walls.position.y = 1.8;
   g.add(walls);
 
-  const roof = pyramid(4.6, 2.4, PALETTE.roofBlue);
-  roof.position.y = 4.2;
-  g.add(roof);
+  const roofSlab = box(6.4, 0.4, 5.4, PALETTE.panelDark);
+  roofSlab.position.y = 3.4;
+  g.add(roofSlab);
 
-  const door = box(1.4, 1.9, 0.3, PALETTE.darkWood);
+  const door = box(1.4, 1.9, 0.3, PALETTE.panelDark);
   door.position.set(0, 1.35, 2.55);
   g.add(door);
 
-  BOOK_COLORS.forEach((c, i) => {
-    const b = box(0.5, 0.72, 0.18, c);
-    b.position.set(-1.75 + i * 0.7, 2.2, 2.6);
-    g.add(b);
+  // file-drawer fronts with colored tabs
+  DOC_COLORS.forEach((c, i) => {
+    const row = Math.floor(i / 3);
+    const col = i % 3;
+    const drawer = box(1.4, 0.5, 0.16, "#1c2333");
+    drawer.position.set(-1.75 + col * 1.75, 1.05 + row * 0.66, 2.55);
+    g.add(drawer);
+    const tab = box(0.4, 0.1, 0.06, c, { emissive: c, emissiveIntensity: 0.4 });
+    tab.position.set(-1.75 + col * 1.75, 1.28 + row * 0.66, 2.65);
+    g.add(tab);
   });
 
-  const windowMesh = cylinder(0.55, 0.55, 0.25, "#bfe3ff", {
-    emissive: "#8fd4ff",
-    emissiveIntensity: 0.35,
+  const vent = cylinder(0.55, 0.55, 0.25, "#1c2333", {
+    emissive: PALETTE.screen,
+    emissiveIntensity: 0.3,
   });
-  windowMesh.rotation.z = Math.PI / 2;
-  windowMesh.position.set(3.05, 2.0, 0);
-  g.add(windowMesh);
+  vent.rotation.z = Math.PI / 2;
+  vent.position.set(3.05, 2.0, 0);
+  g.add(vent);
 
-  // Reading pile: pile-local coords == g-local minus the pile offset.
+  // Archive pile: pile-local coords == g-local minus the pile offset.
   const PILE = { x: -4.2, z: 3.0 };
-  const pileBricks: Mesh[] = [];
+  const pileDocs: Mesh[] = [];
   const fx = new Fx(() => g.parent);
 
-  function spawnBook(): void {
-    const n = pileBricks.length;
-    const color = BOOK_COLORS[Math.floor(Math.random() * BOOK_COLORS.length)]!;
-    const book = box(0.55, 0.14, 0.4, color);
+  function spawnDoc(): void {
+    const n = pileDocs.length;
+    const color = DOC_COLORS[Math.floor(Math.random() * DOC_COLORS.length)]!;
+    const doc = box(0.55, 0.07, 0.42, color);
     const dx = (Math.random() - 0.5) * 0.35;
     const dz = (Math.random() - 0.5) * 0.35;
-    const y = 0.08 + n * 0.15;
+    const y = 0.04 + n * 0.08;
     const from = new Vector3(spec.x, 1.7, spec.z + 3.0);
     const to = new Vector3(spec.x + PILE.x + dx, y, spec.z + PILE.z + dz);
-    fx.fly(book, from, to, 1.7, 0.7, (m) => {
+    fx.fly(doc, from, to, 1.7, 0.7, (m) => {
       m.position.set(PILE.x + dx, y, PILE.z + dz);
       m.rotation.set(0, (Math.random() - 0.5) * 0.7, 0);
       g.add(m);
-      pileBricks.push(m);
-      if (pileBricks.length > 9) {
-        const old = pileBricks.shift()!;
+      pileDocs.push(m);
+      if (pileDocs.length > 12) {
+        const old = pileDocs.shift()!;
         fx.fade(old, 0.4);
       }
     });
   }
 
   return {
-    key: "library",
+    key: "docs",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
-    spawnBook,
+    spawnDoc,
     update(dt) {
       fx.update(dt);
     },
@@ -304,42 +322,72 @@ function createLibrary(spec: BuildingSpec): BuildingInstance {
 }
 
 // ---------------------------------------------------------------------------
-// Forge — code writes. Glowing bricks fly out and stack into a tower per task.
+// Dev Floor — code writes. Glowing code cubes fly out and stack per task.
 // ---------------------------------------------------------------------------
-const BRICK_SLOTS: Array<[number, number]> = [
+const CODE_SLOTS: Array<[number, number]> = [
   [4.8, -1.4],
   [4.8, -0.1],
   [4.8, 1.2],
   [-4.8, -0.6],
 ];
 
-function createForge(spec: BuildingSpec): BuildingInstance {
+function createDevFloor(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "forge";
+  g.name = "devfloor";
   g.position.set(spec.x, 0, spec.z);
 
-  const walls = box(6, 2.8, 5, "#5d6472");
-  walls.position.y = 1.4;
-  g.add(walls);
+  const floor = box(6, 0.3, 5, PALETTE.panelMid);
+  floor.position.y = 0.15;
+  g.add(floor);
 
-  const roof = pyramid(4.5, 1.9, PALETTE.roofRust);
-  roof.position.y = 3.75;
-  g.add(roof);
+  const backWall = box(6, 2.6, 0.4, PALETTE.panelDark);
+  backWall.position.set(0, 1.45, -2.3);
+  g.add(backWall);
 
-  const chimney = cylinder(0.5, 0.62, 2.8, "#4a4f5a");
-  chimney.position.set(1.9, 4.6, -1.4);
-  g.add(chimney);
+  const sideWall = box(0.4, 2.6, 5, PALETTE.panelDark);
+  sideWall.position.set(-2.8, 1.45, 0);
+  g.add(sideWall);
 
-  const mouthMat = mat("#2a1a12", { emissive: PALETTE.forgeFire, emissiveIntensity: 1.4 });
-  const mouth = new Mesh(new BoxGeometry(1.8, 1.2, 0.35), mouthMat);
-  mouth.position.set(0, 0.95, 2.6);
-  g.add(mouth);
+  const awning = box(6.2, 0.3, 1.3, PALETTE.metal);
+  awning.position.set(0, 2.85, -1.9);
+  g.add(awning);
 
-  const anvilTop = box(1.1, 0.3, 0.5, "#3b3f4a", { metalness: 0.5, roughness: 0.5 });
-  anvilTop.position.set(0, 0.85, 1.85);
-  const anvilBase = box(0.8, 0.55, 0.65, "#2f333d");
-  anvilBase.position.set(0, 0.28, 1.85);
-  g.add(anvilBase, anvilTop);
+  // desks with glowing monitors
+  const monitorMat = mat("#0d1420", { emissive: PALETTE.screen, emissiveIntensity: 0.8 });
+  for (const [dx, dz] of [
+    [-1.6, 0.6],
+    [0.4, 0.6],
+    [2.2, -1.2],
+  ] as const) {
+    const deskTop = box(1.7, 0.14, 0.9, PALETTE.wood);
+    deskTop.position.set(dx, 0.78, dz);
+    g.add(deskTop);
+    for (const lx of [dx - 0.7, dx + 0.7]) {
+      const leg = box(0.12, 0.7, 0.7, "#20263a");
+      leg.position.set(lx, 0.37, dz);
+      g.add(leg);
+    }
+    const stand = box(0.14, 0.34, 0.14, "#20263a");
+    stand.position.set(dx, 1.0, dz - 0.2);
+    g.add(stand);
+    const monitor = new Mesh(new BoxGeometry(1.0, 0.62, 0.08), monitorMat);
+    monitor.position.set(dx, 1.42, dz - 0.24);
+    g.add(monitor);
+    const keyboard = box(0.8, 0.06, 0.3, "#151b2b");
+    keyboard.position.set(dx, 0.88, dz + 0.2);
+    g.add(keyboard);
+  }
+
+  // mini rack with status LED
+  const miniRack = box(0.8, 1.4, 0.7, "#20263a");
+  miniRack.position.set(-2.3, 0.85, -1.6);
+  g.add(miniRack);
+  const ledStrip = box(0.6, 0.08, 0.05, PALETTE.passGreen, {
+    emissive: PALETTE.passGreen,
+    emissiveIntensity: 0.9,
+  });
+  ledStrip.position.set(-2.3, 1.3, -1.24);
+  g.add(ledStrip);
 
   type Stack = { owner: string; slot: number; count: number; bricks: Mesh[] };
   const stacks: Stack[] = [];
@@ -348,12 +396,12 @@ function createForge(spec: BuildingSpec): BuildingInstance {
   function stackFor(agentId: string): Stack {
     const existing = stacks.find((s) => s.owner === agentId);
     if (existing) return existing;
-    if (stacks.length < BRICK_SLOTS.length) {
+    if (stacks.length < CODE_SLOTS.length) {
       const s: Stack = { owner: agentId, slot: stacks.length, count: 0, bricks: [] };
       stacks.push(s);
       return s;
     }
-    // Steal the oldest slot: its tower crumbles first.
+    // Steal the oldest slot: its stack crumbles first.
     const victim = stacks[0]!;
     clearStack(victim);
     victim.owner = agentId;
@@ -371,15 +419,15 @@ function createForge(spec: BuildingSpec): BuildingInstance {
     if (s) clearStack(s);
   }
 
-  function launchBrick(agentId: string): void {
+  function pushCode(agentId: string): void {
     const s = stackFor(agentId);
     if (s.count >= 14) clearStack(s);
-    const [sx, sz] = BRICK_SLOTS[s.slot]!;
+    const [sx, sz] = CODE_SLOTS[s.slot]!;
     const y = 0.18 + s.count * 0.37;
     s.count++;
     const dx = (Math.random() - 0.5) * 0.12;
     const dz = (Math.random() - 0.5) * 0.1;
-    const brick = box(0.78, 0.36, 0.52, PALETTE.glowCode, {
+    const brick = box(0.78, 0.36, 0.52, PALETTE.screen, {
       emissive: "#35c8ff",
       emissiveIntensity: 1.1,
       roughness: 0.4,
@@ -395,22 +443,22 @@ function createForge(spec: BuildingSpec): BuildingInstance {
   }
 
   return {
-    key: "forge",
+    key: "devfloor",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
-    launchBrick,
+    pushCode,
     resetStack,
     update(dt, elapsed) {
-      mouthMat.emissiveIntensity =
-        1.35 + 0.4 * Math.sin(elapsed * 9.7) + 0.18 * Math.sin(elapsed * 23);
+      monitorMat.emissiveIntensity = 0.7 + 0.3 * Math.sin(elapsed * 4.2) + 0.12 * Math.sin(elapsed * 13);
+      ledStrip.rotation.y = Math.sin(elapsed * 0.6) * 0.4;
       fx.update(dt);
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Barracks — tool calls. Units march out and return.
+// Ops Bench — tool calls. CLI bots march out and return.
 // ---------------------------------------------------------------------------
 const TOOL_COLORS: Record<string, string> = {
   shell: "#9acd32",
@@ -422,39 +470,57 @@ const TOOL_COLORS: Record<string, string> = {
   mcp: "#b388ff",
 };
 
-function createBarracks(spec: BuildingSpec): BuildingInstance {
+function createOps(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "barracks";
+  g.name = "ops";
   g.position.set(spec.x, 0, spec.z);
 
-  const walls = box(6, 2.6, 5, PALETTE.wood);
-  walls.position.y = 1.3;
-  g.add(walls);
+  const floor = box(6, 0.3, 5, PALETTE.panelMid);
+  floor.position.y = 0.15;
+  g.add(floor);
 
-  const roof = pyramid(4.4, 1.7, "#7c4a2b");
-  roof.position.y = 3.45;
-  g.add(roof);
+  const backWall = box(6, 2.6, 0.4, PALETTE.panelDark);
+  backWall.position.set(0, 1.45, -2.1);
+  g.add(backWall);
 
-  const door = box(1.5, 2.0, 0.3, PALETTE.darkWood);
+  const sideWall = box(0.4, 2.6, 5, PALETTE.panelDark);
+  sideWall.position.set(-2.8, 1.45, 0);
+  g.add(sideWall);
+
+  const awning = box(6.2, 0.3, 1.3, PALETTE.metal);
+  awning.position.set(0, 2.85, -1.7);
+  g.add(awning);
+
+  const door = box(1.5, 2.0, 0.3, PALETTE.panelMid);
   door.position.set(0, 1.0, 2.55);
   g.add(door);
 
-  const banner = box(1.0, 1.4, 0.12, PALETTE.roofRed);
-  banner.position.set(2.0, 1.7, 2.62);
-  g.add(banner);
+  // status screen next to the door
+  const panelMat = mat("#111726", { emissive: PALETTE.passGreen, emissiveIntensity: 0.4 });
+  const panel = new Mesh(new BoxGeometry(1.0, 1.4, 0.12), panelMat);
+  panel.position.set(2.0, 1.7, 2.62);
+  g.add(panel);
 
-  for (const x of [-2.3, -2.0]) {
-    const spear = cylinder(0.05, 0.05, 2.3, "#8a6a42");
-    spear.position.set(x, 1.15, 2.62);
-    spear.rotation.z = x === -2.3 ? 0.22 : -0.16;
-    g.add(spear);
-  }
+  // tool rack on the back wall
+  Object.values(TOOL_COLORS).forEach((c, i) => {
+    const tool = box(0.28, 0.55, 0.1, c, { emissive: c, emissiveIntensity: 0.25 });
+    tool.position.set(-2.2 + i * 0.75, 1.9, -1.85);
+    g.add(tool);
+  });
+
+  // workbench with a vise
+  const bench = box(3.2, 0.9, 1.0, PALETTE.wood);
+  bench.position.set(0.6, 0.6, 1.0);
+  g.add(bench);
+  const vise = box(0.5, 0.4, 0.4, "#3b3f4a", { metalness: 0.5, roughness: 0.5 });
+  vise.position.set(1.7, 1.25, 1.0);
+  g.add(vise);
 
   type Unit = { group: Group; legs: Mesh[]; t: number; dur: number };
   const units: Unit[] = [];
   const dir = new Vector3(PLAZA.x - spec.x, 0, PLAZA.z - spec.doorZ).normalize();
 
-  function marchUnit(tool: string, durationMs: number): void {
+  function runTool(tool: string, durationMs: number): void {
     if (units.length >= 5) return;
     const parent = g.parent;
     if (!parent) return;
@@ -485,12 +551,13 @@ function createBarracks(spec: BuildingSpec): BuildingInstance {
   }
 
   return {
-    key: "barracks",
+    key: "ops",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
-    marchUnit,
-    update(dt) {
+    runTool,
+    update(dt, elapsed) {
+      panelMat.emissiveIntensity = 0.35 + 0.2 * Math.sin(elapsed * 2.6);
       for (let i = units.length - 1; i >= 0; i--) {
         const u = units[i]!;
         u.t += dt / u.dur;
@@ -520,38 +587,38 @@ function createBarracks(spec: BuildingSpec): BuildingInstance {
 }
 
 // ---------------------------------------------------------------------------
-// Archery Range — tests. Green flag on pass, cannonball crater on fail.
+// QA Lab — tests. Green flag on pass, scorch crater + crash orb on fail.
 // ---------------------------------------------------------------------------
-function createArchery(spec: BuildingSpec): BuildingInstance {
+function createQA(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "archery";
+  g.name = "qa";
   g.position.set(spec.x, 0, spec.z);
 
-  const platform = box(7, 0.35, 5, PALETTE.wood);
+  const platform = box(7, 0.35, 5, PALETTE.metal);
   platform.position.y = 0.175;
   g.add(platform);
 
-  const buttWhite = mat("#f2f2f2");
-  const buttRed = mat(PALETTE.failRed);
+  const frameMat = mat("#111726");
+  const rigMat = mat(PALETTE.screen, { emissive: PALETTE.screen, emissiveIntensity: 0.55 });
   for (const x of [-2.2, 0, 2.2]) {
-    const post = box(0.15, 1.3, 0.15, PALETTE.darkWood);
+    const post = box(0.15, 1.3, 0.15, "#20263a");
     post.position.set(x, 1.0, -1.3);
     g.add(post);
-    const outer = new Mesh(new CylinderGeometry(0.72, 0.72, 0.26, 18), buttWhite);
+    const outer = new Mesh(new CylinderGeometry(0.72, 0.72, 0.26, 18), frameMat);
     outer.rotation.x = Math.PI / 2;
     outer.position.set(x, 1.62, -1.3);
     outer.castShadow = true;
-    const inner = new Mesh(new CylinderGeometry(0.34, 0.34, 0.3, 18), buttRed);
+    const inner = new Mesh(new CylinderGeometry(0.34, 0.34, 0.3, 18), rigMat);
     inner.rotation.x = Math.PI / 2;
     inner.position.set(x, 1.62, -1.28);
     g.add(outer, inner);
   }
 
   for (const x of [-2.9, 2.9]) {
-    const hay = cylinder(0.62, 0.62, 1.0, "#e8c766");
-    hay.rotation.z = Math.PI / 2;
-    hay.position.set(x, 0.85, 1.4);
-    g.add(hay);
+    const crate = box(1.1, 0.9, 1.0, "#39435a");
+    crate.position.set(x, 0.8, 1.4);
+    crate.rotation.y = x > 0 ? 0.3 : -0.4;
+    g.add(crate);
   }
 
   const pole = cylinder(0.07, 0.07, 3.2, "#d8d8e0");
@@ -564,7 +631,7 @@ function createArchery(spec: BuildingSpec): BuildingInstance {
   g.add(flag);
 
   const craterMat = new MeshStandardMaterial({
-    color: "#40342a",
+    color: "#1e1410",
     roughness: 1,
     transparent: true,
     opacity: 1,
@@ -578,20 +645,24 @@ function createArchery(spec: BuildingSpec): BuildingInstance {
   const fx = new Fx(() => g.parent);
   let flagT = -1;
   let craterT = -1;
+  let flashT = -1;
+  let flashPass = true;
 
   function testResult(pass: boolean): void {
+    flashT = 0;
+    flashPass = pass;
     if (pass) {
-      flagMat.color.set(PALETTE.flagGreen);
+      flagMat.color.set(PALETTE.passGreen);
       flagT = 0;
     } else {
       crater.visible = true;
       craterMat.opacity = 1;
       craterT = 0;
-      const ball = new Mesh(new SphereGeometry(0.5, 14, 12), mat(PALETTE.failRed));
-      ball.castShadow = true;
+      const orb = new Mesh(new SphereGeometry(0.5, 14, 12), mat(PALETTE.failRed));
+      orb.castShadow = true;
       const from = new Vector3(spec.x + 3.5, 7, spec.z + 9);
       const to = new Vector3(spec.x + 0.5, 0.5, spec.z + 3.6);
-      fx.fly(ball, from, to, 0.5, 0.55, (m) => {
+      fx.fly(orb, from, to, 0.5, 0.55, (m) => {
         m.position.set(0.5, 0.5, 3.6);
         g.add(m);
         fx.fade(m, 5.5);
@@ -600,13 +671,28 @@ function createArchery(spec: BuildingSpec): BuildingInstance {
   }
 
   return {
-    key: "archery",
+    key: "qa",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
     testResult,
     update(dt, elapsed) {
       fx.update(dt);
+
+      if (flashT >= 0) {
+        flashT += dt;
+        if (flashT < 3) {
+          const c = flashPass ? PALETTE.passGreen : PALETTE.failRed;
+          rigMat.color.set(c);
+          rigMat.emissive.set(c);
+          rigMat.emissiveIntensity = 1.7 - 0.3 * flashT;
+        } else {
+          rigMat.color.set(PALETTE.screen);
+          rigMat.emissive.set(PALETTE.screen);
+          rigMat.emissiveIntensity = 0.55;
+          flashT = -1;
+        }
+      }
 
       if (flagT >= 0) {
         flagT += dt;
@@ -644,75 +730,76 @@ function createArchery(spec: BuildingSpec): BuildingInstance {
 }
 
 // ---------------------------------------------------------------------------
-// Gold Mine — token usage. Coins shower out of the cave onto a heap.
+// Compute Cluster — token usage. Data packets shower onto the heap.
 // ---------------------------------------------------------------------------
-function createGoldMine(spec: BuildingSpec): BuildingInstance {
+function createRacks(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "goldMine";
+  g.name = "racks";
   g.position.set(spec.x, 0, spec.z);
 
-  const slab = box(7, 0.4, 6, "#8a8f9c");
+  const slab = box(7, 0.4, 6, "#2a303c");
   slab.position.y = 0.2;
   g.add(slab);
 
-  const mound = cylinder(2.4, 3.1, 2.3, "#7d8494");
-  mound.position.set(-0.5, 1.35, -0.9);
-  g.add(mound);
-  const shoulder = box(2.6, 1.6, 2.2, "#6f7686");
-  shoulder.position.set(1.6, 1.0, -1.4);
-  shoulder.rotation.y = 0.4;
-  g.add(shoulder);
-
-  const caveMat = mat("#17120c", { emissive: PALETTE.gold, emissiveIntensity: 0.55 });
-  const cave = new Mesh(new BoxGeometry(1.9, 1.7, 0.5), caveMat);
-  cave.position.set(-0.5, 1.05, 2.05);
-  g.add(cave);
-
-  for (const [px, pz, ry] of [
-    [-2.6, 1.6, 0.5],
-    [-2.2, -2.4, -0.3],
-  ] as const) {
-    const rock = box(1.2, 0.9, 1.0, "#767d8d");
-    rock.position.set(px, 0.65, pz);
-    rock.rotation.y = ry;
-    g.add(rock);
+  // server racks along the back with LED banks
+  const ledMats: MeshStandardMaterial[] = [];
+  for (const x of [-2.55, -0.85, 0.85, 2.55]) {
+    const rack = box(1.3, 2.9, 1.1, "#20263a");
+    rack.position.set(x, 1.65, -1.9);
+    g.add(rack);
+    const face = box(1.1, 2.5, 0.1, "#151b2b");
+    face.position.set(x, 1.65, -1.32);
+    g.add(face);
+    for (let r = 0; r < 5; r++) {
+      const on = r % 2 === 0 ? PALETTE.amber : PALETTE.passGreen;
+      const ledMat = mat(on, { emissive: on, emissiveIntensity: 0.8 });
+      const led = new Mesh(new BoxGeometry(0.9, 0.1, 0.06), ledMat);
+      led.position.set(x, 0.75 + r * 0.45, -1.25);
+      g.add(led);
+      ledMats.push(ledMat);
+    }
   }
 
-  const poleA = cylinder(0.1, 0.1, 2.6, PALETTE.darkWood);
-  poleA.position.set(-2.0, 1.5, 2.4);
-  const poleB = cylinder(0.1, 0.1, 2.6, PALETTE.darkWood);
-  poleB.position.set(1.0, 1.5, 2.4);
-  const bar = cylinder(0.09, 0.09, 3.4, PALETTE.darkWood);
-  bar.rotation.z = Math.PI / 2;
-  bar.position.set(-0.5, 2.75, 2.4);
-  g.add(poleA, poleB, bar);
+  // cable tray over the racks
+  const tray = cylinder(0.12, 0.12, 5.6, "#151b2b");
+  tray.rotation.z = Math.PI / 2;
+  tray.position.set(0, 3.3, -1.9);
+  g.add(tray);
+
+  // packet feed port on the front edge
+  const portMat = mat("#0d1420", { emissive: PALETTE.screen, emissiveIntensity: 0.8 });
+  const port = new Mesh(new BoxGeometry(0.7, 0.7, 0.18), portMat);
+  port.position.set(-0.5, 1.4, 2.95);
+  g.add(port);
 
   const HEAP = { x: 2.35, z: 1.7 };
-  const coins: Mesh[] = [];
+  const packets: Mesh[] = [];
   const fx = new Fx(() => g.parent);
 
-  function mineGold(amount: number): void {
+  function rackLoad(amount: number): void {
     const n = Math.max(1, Math.min(3, Math.ceil(amount / 400)));
     for (let k = 0; k < n; k++) {
-      const row = coins.length;
+      const row = packets.length;
       const dx = (Math.random() - 0.5) * 0.85;
       const dz = (Math.random() - 0.5) * 0.85;
       const y = 0.45 + (row % 14) * 0.13;
-      const coin = new Mesh(
-        new CylinderGeometry(0.3, 0.3, 0.1, 12),
-        mat(PALETTE.gold, { emissive: "#b8860b", emissiveIntensity: 0.4, metalness: 0.45, roughness: 0.35 }),
-      );
-      coin.castShadow = true;
-      const from = new Vector3(spec.x - 0.5, 1.3, spec.z + 2.1);
+      const packet = box(0.4, 0.18, 0.4, PALETTE.amber, {
+        emissive: "#b8860b",
+        emissiveIntensity: 0.7,
+        metalness: 0.3,
+        roughness: 0.4,
+      });
+      packet.castShadow = true;
+      const from = new Vector3(spec.x - 0.5, 1.4, spec.z + 3.0);
       const to = new Vector3(spec.x + HEAP.x + dx, y, spec.z + HEAP.z + dz);
-      fx.fly(coin, from, to, 1.9 + k * 0.3, 0.65, (m) => {
+      fx.fly(packet, from, to, 1.9 + k * 0.3, 0.65, (m) => {
         m.position.set(HEAP.x + dx, y, HEAP.z + dz);
         m.rotation.x = (Math.random() - 0.5) * 0.4;
         m.rotation.z = (Math.random() - 0.5) * 0.4;
         g.add(m);
-        coins.push(m);
-        if (coins.length > 24) {
-          const old = coins.shift()!;
+        packets.push(m);
+        if (packets.length > 24) {
+          const old = packets.shift()!;
           fx.fade(old, 0.5);
         }
       });
@@ -722,335 +809,357 @@ function createGoldMine(spec: BuildingSpec): BuildingInstance {
   let glowT = 0;
 
   return {
-    key: "goldMine",
+    key: "racks",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
-    mineGold,
+    rackLoad,
     update(dt, elapsed) {
       glowT = Math.max(0, glowT - dt);
-      caveMat.emissiveIntensity =
-        0.5 + 0.22 * Math.sin(elapsed * 5.3) + (glowT > 0 ? 1.4 : 0);
       if (Math.ceil(elapsed * 0.7) !== Math.ceil((elapsed - dt) * 0.7)) glowT = 0.35;
+      portMat.emissiveIntensity = 0.7 + 0.3 * Math.sin(elapsed * 6.1) + (glowT > 0 ? 0.9 : 0);
+      ledMats.forEach((m, i) => {
+        m.emissiveIntensity =
+          0.55 + 0.3 * Math.sin(elapsed * (2.2 + (i % 5) * 0.7) + i) + (glowT > 0 ? 0.9 : 0);
+      });
       fx.update(dt);
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Elixir Collector — dollars spent. Bubbles rise from the vat; level sloshes.
+// Power & Billing — dollars spent. Battery level shows; meter needle jumps.
 // ---------------------------------------------------------------------------
-function createElixir(spec: BuildingSpec): BuildingInstance {
+function createPower(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "elixir";
+  g.name = "power";
   g.position.set(spec.x, 0, spec.z);
 
-  const slab = box(7, 0.4, 6, "#8a8f9c");
+  const slab = box(7, 0.4, 6, "#2a303c");
   slab.position.y = 0.2;
   g.add(slab);
 
-  const tankShellMat = mat("#a9c8e8", {
-    transparent: true,
-    opacity: 0.4,
-    roughness: 0.15,
-    metalness: 0.1,
-  });
-  const shell = new Mesh(new CylinderGeometry(1.75, 1.75, 3.0, 18), tankShellMat);
-  shell.position.set(-0.8, 1.9, -0.4);
-  shell.castShadow = true;
-  g.add(shell);
+  // battery bank with charge bars
+  const batt = box(2.6, 2.8, 1.8, "#20263a");
+  batt.position.set(-1.6, 1.6, -0.9);
+  g.add(batt);
+  const battCap = box(2.8, 0.3, 2.0, "#151b2b");
+  battCap.position.set(-1.6, 3.1, -0.9);
+  g.add(battCap);
+  const barMats: MeshStandardMaterial[] = [];
+  for (let i = 0; i < 5; i++) {
+    const bm = mat(PALETTE.teal, { emissive: PALETTE.teal, emissiveIntensity: 0.9 });
+    const bar = new Mesh(new BoxGeometry(1.8, 0.22, 0.1), bm);
+    bar.position.set(-1.6, 0.7 + i * 0.5, 0.02);
+    g.add(bar);
+    barMats.push(bm);
+  }
 
-  const liquidMat = mat(PALETTE.elixir, {
-    emissive: PALETTE.elixir,
-    emissiveIntensity: 0.55,
-    roughness: 0.35,
-  });
-  const liquid = new Mesh(new CylinderGeometry(1.58, 1.58, 1, 18), liquidMat);
-  liquid.position.set(-0.8, 0.5, -0.4);
-  g.add(liquid);
+  // utility meter with a needle
+  const meterBox = box(1.3, 1.7, 0.6, "#20263a");
+  meterBox.position.set(1.9, 1.05, 1.6);
+  g.add(meterBox);
+  const dial = cylinder(0.5, 0.5, 0.12, "#0d1420", { emissive: PALETTE.teal, emissiveIntensity: 0.25 });
+  dial.rotation.x = Math.PI / 2;
+  dial.position.set(1.9, 1.4, 1.94);
+  g.add(dial);
+  const needlePivot = new Group();
+  needlePivot.position.set(1.9, 1.4, 2.02);
+  const needle = box(0.06, 0.42, 0.05, PALETTE.failRed);
+  needle.position.y = 0.18;
+  needlePivot.add(needle);
+  g.add(needlePivot);
+  const hub = cylinder(0.07, 0.07, 0.08, "#d8d8e0");
+  hub.rotation.x = Math.PI / 2;
+  hub.position.set(1.9, 1.4, 2.06);
+  g.add(hub);
 
-  const cap = cylinder(1.85, 1.85, 0.3, "#6f7686");
-  cap.position.set(-0.8, 3.5, -0.4);
-  g.add(cap);
-
-  const shed = box(2.6, 2.0, 2.4, "#e8dcc0");
-  shed.position.set(2.1, 1.2, 1.2);
-  g.add(shed);
-  const shedRoof = pyramid(2.1, 1.3, "#7c4a2b");
-  shedRoof.position.set(2.1, 2.85, 1.2);
-  g.add(shedRoof);
-
-  const pipe = cylinder(0.22, 0.22, 3.4, "#6f7686");
+  // conduit from the battery to the meter
+  const pipe = cylinder(0.18, 0.18, 2.4, "#151b2b");
   pipe.rotation.z = Math.PI / 2;
-  pipe.position.set(0.6, 2.6, -0.1);
+  pipe.position.set(0.4, 2.5, 0.4);
   g.add(pipe);
 
-  const spout = cylinder(0.16, 0.16, 1.0, "#6f7686");
-  spout.position.set(0.6, 1.4, 1.5);
-  g.add(spout);
-
   const fx = new Fx(() => g.parent);
-  let level = 0.5; // 0..1 of tank height
+  let level = 0.5; // 0..1 charge
   let bump = 0;
 
-  function collect(): void {
+  function meterSpike(cost: number): void {
     const n = 2 + Math.floor(Math.random() * 2);
     for (let k = 0; k < n; k++) {
-      const bubble = new Mesh(
-        new SphereGeometry(0.13 + Math.random() * 0.1, 10, 8),
-        mat("#e6c4ff", { emissive: PALETTE.elixir, emissiveIntensity: 0.9, transparent: true, opacity: 0.85 }),
+      const spark = box(0.14, 0.14, 0.14, PALETTE.teal, {
+        emissive: PALETTE.teal,
+        emissiveIntensity: 1.3,
+      });
+      const from = new Vector3(spec.x + 1.9, 2.0, spec.z + 1.8);
+      const to = from.clone().add(
+        new Vector3((Math.random() - 0.5) * 0.8, 1.4 + Math.random(), (Math.random() - 0.5) * 0.8),
       );
-      const from = new Vector3(
-        spec.x - 0.8 + (Math.random() - 0.5) * 1.6,
-        3.3,
-        spec.z - 0.4 + (Math.random() - 0.5) * 1.6,
-      );
-      const to = from.clone().add(new Vector3((Math.random() - 0.5) * 0.6, 1.5 + Math.random(), (Math.random() - 0.5) * 0.6));
-      fx.fly(bubble, from, to, 0.35, 0.9 + Math.random() * 0.4);
+      fx.fly(spark, from, to, 0.2, 0.5 + Math.random() * 0.3);
     }
     bump = 1;
   }
 
   return {
-    key: "elixir",
+    key: "power",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
-    collect,
+    meterSpike,
     update(dt, elapsed) {
       bump = Math.max(0, bump - dt * 1.8);
       const drain = (0.5 - level) * dt * 0.12;
       level = Math.min(0.9, level + drain + bump * dt * 1.6);
-      const h = 0.5 + level * 2.3;
-      liquid.scale.y = h;
-      liquid.position.y = 0.42 + h / 2;
-      liquidMat.emissiveIntensity = 0.45 + bump * 0.9 + 0.1 * Math.sin(elapsed * 3.7);
+
+      needlePivot.rotation.z =
+        -0.85 + level * 1.6 + (bump > 0.15 ? Math.sin(elapsed * 40) * bump * 0.3 : 0);
+      barMats.forEach((m, i) => {
+        const on = i / 5 < level;
+        m.emissiveIntensity = on ? 0.8 + 0.25 * Math.sin(elapsed * 3 + i) : 0.05;
+      });
       fx.update(dt);
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Trophy Hall — completed tasks. A trophy flies onto the shelf each time.
+// Release Wall — completed tasks. A version plaque lands on the board.
 // ---------------------------------------------------------------------------
-function createTrophyHall(spec: BuildingSpec): BuildingInstance {
+const PLAQUE_COLORS = ["#ffb84d", "#7ef0ff", "#4fd67a", "#4fe3c1", "#e05252", "#b388ff"];
+
+function createRelease(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "trophyHall";
+  g.name = "release";
   g.position.set(spec.x, 0, spec.z);
 
-  const base = box(6.4, 0.5, 5.4, PALETTE.stone);
+  const base = box(6.4, 0.5, 5.4, PALETTE.panelMid);
   base.position.y = 0.25;
   g.add(base);
 
-  const walls = box(5.4, 2.8, 4.4, PALETTE.cream);
+  const walls = box(5.4, 2.8, 4.4, PALETTE.panelDark);
   walls.position.y = 1.9;
   g.add(walls);
 
-  for (const x of [-2.1, -0.7, 0.7, 2.1]) {
-    const col = cylinder(0.24, 0.28, 2.7, "#efe6d2");
-    col.position.set(x, 1.85, 2.45);
-    g.add(col);
-  }
+  // release board on the south face
+  const board = box(4.8, 2.0, 0.14, "#111726");
+  board.position.set(0, 1.9, 2.32);
+  g.add(board);
+  const headerMat = mat(PALETTE.amber, { emissive: PALETTE.amber, emissiveIntensity: 0.35 });
+  const header = new Mesh(new BoxGeometry(4.8, 0.3, 0.1), headerMat);
+  header.position.set(0, 3.05, 2.34);
+  g.add(header);
 
-  const roof = box(6.7, 0.5, 5.7, "#4a7fd0");
+  const roof = box(6.7, 0.5, 5.7, PALETTE.metal);
   roof.position.y = 3.55;
   g.add(roof);
-  const trimMat = mat(PALETTE.gold, { emissive: PALETTE.gold, emissiveIntensity: 0.2 });
+  const trimMat = mat(PALETTE.screen, { emissive: PALETTE.screen, emissiveIntensity: 0.2 });
   const trim = new Mesh(new BoxGeometry(5.7, 0.24, 4.7), trimMat);
   trim.position.y = 3.92;
   g.add(trim);
 
-  const crest = pyramid(1.1, 1.3, PALETTE.gold);
-  crest.position.y = 4.65;
-  g.add(crest);
-
-  const shelf = box(6.6, 0.28, 1.1, PALETTE.darkWood);
-  shelf.position.set(0, 0.7, 3.7);
-  g.add(shelf);
-  for (const x of [-2.9, -1, 1, 2.9]) {
-    const leg = box(0.3, 0.7, 0.8, "#5d4326");
-    leg.position.set(x, 0.35, 3.7);
-    g.add(leg);
-  }
+  const mast = cylinder(0.06, 0.06, 1.5, "#59617a");
+  mast.position.y = 4.9;
+  g.add(mast);
 
   const SLOT_COUNT = 8;
-  const cups: Mesh[] = [];
+  const plaques: Mesh[] = [];
   const fx = new Fx(() => g.parent);
+  let releaseN = 0;
 
-  function cupMesh(): Mesh {
-    const c = new Mesh(
-      new CylinderGeometry(0.24, 0.1, 0.46, 10),
-      mat(PALETTE.gold, { emissive: "#b8860b", emissiveIntensity: 0.35, metalness: 0.5, roughness: 0.3 }),
-    );
-    c.castShadow = true;
-    return c;
-  }
-
-  function addTrophy(): void {
-    const idx = cups.length % SLOT_COUNT;
-    if (cups.length >= SLOT_COUNT) {
-      const victim = cups.shift()!;
+  function logRelease(): void {
+    const idx = plaques.length % SLOT_COUNT;
+    if (plaques.length >= SLOT_COUNT) {
+      const victim = plaques.shift()!;
       fx.fade(victim, 0.4);
     }
-    const x = -2.8 + idx * 0.8;
-    const cup = cupMesh();
+    const x = -2.45 + idx * 0.7;
+    const color = PLAQUE_COLORS[releaseN++ % PLAQUE_COLORS.length]!;
+    const plaque = box(0.6, 0.5, 0.1, color, {
+      emissive: color,
+      emissiveIntensity: 0.35,
+    });
     const from = new Vector3(spec.x, 7.5, spec.z);
-    const to = new Vector3(spec.x + x, 1.06, spec.z + 3.7);
-    fx.fly(cup, from, to, 2.4, 0.8, (m) => {
-      m.position.set(x, 1.06, 3.7);
-      m.rotation.y = (Math.random() - 0.5) * 0.6;
+    const to = new Vector3(spec.x + x, 1.9, spec.z + 2.44);
+    fx.fly(plaque, from, to, 2.4, 0.8, (m) => {
+      m.position.set(x, 1.9, 2.44);
+      m.rotation.y = (Math.random() - 0.5) * 0.2;
       g.add(m);
-      cups.push(m);
+      plaques.push(m);
     });
   }
 
   return {
-    key: "trophyHall",
+    key: "release",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
-    addTrophy,
+    logRelease,
     update(dt, elapsed) {
       trimMat.emissiveIntensity = 0.2 + 0.12 * Math.sin(elapsed * 2.2);
+      headerMat.emissiveIntensity = 0.3 + 0.15 * Math.sin(elapsed * 3.1 + 1);
       fx.update(dt);
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Clock Tower — the village heartbeat: gears turn, hands keep session time.
+// NOC Monitors — ops dashboard: gauges, status lights, cooling fans.
 // ---------------------------------------------------------------------------
-function createClockTower(spec: BuildingSpec): BuildingInstance {
+function createNOC(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "clockTower";
+  g.name = "noc";
   g.position.set(spec.x, 0, spec.z);
 
-  const base = box(5, 0.5, 6, PALETTE.stone);
+  const base = box(5, 0.5, 6, PALETTE.panelMid);
   base.position.y = 0.25;
   g.add(base);
 
-  const shaft = box(3.4, 5.6, 3.4, "#e8dcc0");
-  shaft.position.y = 3.3;
+  const shaft = box(3.6, 5.4, 3.6, PALETTE.panelDark);
+  shaft.position.y = 3.2;
   g.add(shaft);
 
-  const roof = pyramid(2.9, 2.0, PALETTE.roofBlue);
-  roof.position.y = 7.1;
-  g.add(roof);
-  const vane = box(0.9, 0.5, 0.06, PALETTE.gold);
-  vane.position.set(0.5, 8.4, 0);
-  g.add(vane);
+  const roofSlab = box(4.0, 0.4, 4.0, PALETTE.metal);
+  roofSlab.position.y = 6.1;
+  g.add(roofSlab);
 
-  const rim = cylinder(1.32, 1.32, 0.2, PALETTE.darkWood);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.set(0, 5.1, 1.72);
-  g.add(rim);
-  const face = cylinder(1.16, 1.16, 0.24, "#f6f1e3");
-  face.rotation.x = Math.PI / 2;
-  face.position.set(0, 5.1, 1.74);
-  g.add(face);
-  for (let i = 0; i < 12; i++) {
-    const tick = box(0.07, 0.2, 0.06, "#2b3244");
-    const a = (i / 12) * Math.PI * 2;
-    tick.position.set(Math.sin(a) * 0.95, 5.1 + Math.cos(a) * 0.95, 1.88);
-    tick.rotation.z = -a;
-    g.add(tick);
+  const mast = cylinder(0.07, 0.07, 1.8, "#59617a");
+  mast.position.y = 7.1;
+  g.add(mast);
+  const beaconMat = mat(PALETTE.alertRed, { emissive: PALETTE.alertRed, emissiveIntensity: 1.2 });
+  const beacon = new Mesh(new SphereGeometry(0.15, 8, 6), beaconMat);
+  beacon.position.y = 8.05;
+  g.add(beacon);
+
+  // dashboard screen on the south face
+  const screenFrame = box(2.6, 1.9, 0.12, "#111726");
+  screenFrame.position.set(-0.4, 4.5, 1.86);
+  g.add(screenFrame);
+  const screenMat = mat("#0d1420", { emissive: PALETTE.screen, emissiveIntensity: 0.55 });
+  const screen = new Mesh(new BoxGeometry(2.3, 1.6, 0.14), screenMat);
+  screen.position.set(-0.4, 4.5, 1.92);
+  g.add(screen);
+
+  // gauge column beside the screen
+  const needlePivots: Group[] = [];
+  for (const [i, y] of [5.2, 4.45, 3.7].entries()) {
+    const rim = cylinder(0.38, 0.38, 0.1, "#151b2b");
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(1.15, y, 1.87);
+    g.add(rim);
+    const faceM = mat("#0d1420", {
+      emissive: i === 0 ? PALETTE.amber : PALETTE.screen,
+      emissiveIntensity: 0.35,
+    });
+    const face = new Mesh(new CylinderGeometry(0.3, 0.3, 0.12, 14), faceM);
+    face.rotation.x = Math.PI / 2;
+    face.position.set(1.15, y, 1.9);
+    g.add(face);
+    const pivot = new Group();
+    pivot.position.set(1.15, y, 1.98);
+    const needle = box(0.05, 0.26, 0.04, PALETTE.failRed);
+    needle.position.y = 0.1;
+    pivot.add(needle);
+    g.add(pivot);
+    needlePivots.push(pivot);
   }
 
-  const minutePivot = new Group();
-  minutePivot.position.set(0, 5.1, 1.9);
-  const minuteHand = box(0.09, 0.9, 0.06, "#2b3244");
-  minuteHand.position.y = 0.38;
-  minutePivot.add(minuteHand);
-  const hourPivot = new Group();
-  hourPivot.position.set(0, 5.1, 1.93);
-  const hourHand = box(0.12, 0.6, 0.06, "#2b3244");
-  hourHand.position.y = 0.26;
-  hourPivot.add(hourHand);
-  const hub = cylinder(0.1, 0.1, 0.1, PALETTE.gold);
-  hub.rotation.x = Math.PI / 2;
-  hub.position.set(0, 5.1, 1.96);
-  g.add(minutePivot, hourPivot, hub);
+  // status lights on the east face
+  const lightMats: MeshStandardMaterial[] = [];
+  for (const [i, c] of [PALETTE.passGreen, PALETTE.amber, PALETTE.failRed, PALETTE.screen].entries()) {
+    const lm = mat(c, { emissive: c, emissiveIntensity: 1 });
+    const l = new Mesh(new SphereGeometry(0.12, 8, 6), lm);
+    l.position.set(1.86, 5.6 - i * 0.7, 0.6);
+    g.add(l);
+    lightMats.push(lm);
+  }
 
-  function gear(r: number, x: number, y: number, z: number, teeth: number): Group {
-    const grp = new Group();
-    grp.position.set(x, y, z);
-    const wheel = cylinder(r, r, 0.2, "#8a8f9c", { metalness: 0.55, roughness: 0.4 });
-    wheel.rotation.z = Math.PI / 2;
-    grp.add(wheel);
-    for (let i = 0; i < teeth; i++) {
-      const a = (i / teeth) * Math.PI * 2;
-      const tooth = box(0.22, 0.3, 0.2, "#8a8f9c", { metalness: 0.55, roughness: 0.4 });
-      tooth.position.set(0, Math.cos(a) * (r + 0.12), Math.sin(a) * (r + 0.12));
-      tooth.rotation.x = -a;
-      grp.add(tooth);
+  // cooling fans on the south face
+  const spinners: Group[] = [];
+  for (const [fx2, fy] of [
+    [-0.9, 2.2],
+    [0.4, 1.3],
+  ] as const) {
+    const ring = cylinder(0.52, 0.52, 0.08, "#151b2b");
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(fx2, fy, 1.87);
+    g.add(ring);
+    const spin = new Group();
+    spin.position.set(fx2, fy, 1.93);
+    for (let b = 0; b < 4; b++) {
+      const blade = box(0.4, 0.1, 0.05, "#39435a");
+      blade.position.set(Math.cos((b * Math.PI) / 2) * 0.22, Math.sin((b * Math.PI) / 2) * 0.22, 0);
+      blade.rotation.z = (b * Math.PI) / 2 + 0.5;
+      spin.add(blade);
     }
-    return grp;
+    g.add(spin);
+    spinners.push(spin);
   }
-
-  const gearA = gear(0.8, 1.82, 3.4, -0.7, 10);
-  const gearB = gear(0.58, 1.82, 4.7, 0.35, 8);
-  const gearC = gear(0.42, 1.82, 3.6, 1.2, 7);
-  g.add(gearA, gearB, gearC);
 
   return {
-    key: "clockTower",
+    key: "noc",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
     update(dt, elapsed) {
-      gearA.rotation.x += dt * 0.8;
-      gearB.rotation.x -= dt * 1.12;
-      gearC.rotation.x += dt * 1.55;
-      minutePivot.rotation.z = -((elapsed % 60) / 60) * Math.PI * 2;
-      hourPivot.rotation.z = -((elapsed % 720) / 720) * Math.PI * 2;
-      vane.rotation.y = Math.sin(elapsed * 0.6) * 0.5;
+      spinners.forEach((s, i) => {
+        s.rotation.z += dt * (2.4 + i * 1.1);
+      });
+      needlePivots.forEach((p, i) => {
+        p.rotation.z = Math.sin(elapsed * (0.7 + i * 0.35) + i * 1.7) * 0.9;
+      });
+      lightMats.forEach((m, i) => {
+        m.emissiveIntensity = 0.7 + 0.6 * Math.sin(elapsed * 2.2 + i * 1.3);
+      });
+      screenMat.emissiveIntensity = 0.5 + 0.22 * Math.sin(elapsed * 4.1) + 0.1 * Math.sin(elapsed * 11);
+      beaconMat.emissiveIntensity = 1.0 + 0.6 * Math.sin(elapsed * 3.3);
     },
   };
 }
 
 // ---------------------------------------------------------------------------
-// Mystery Hut — unknown / error / approval events. Crooked, glowing, twitchy.
+// Incident Room — errors and unknown events. Red strobe, twitchy, glowing.
 // ---------------------------------------------------------------------------
-function createMystery(spec: BuildingSpec): BuildingInstance {
+function createIncident(spec: BuildingSpec): BuildingInstance {
   const g = new Group();
-  g.name = "mystery";
+  g.name = "incident";
   g.position.set(spec.x, 0, spec.z);
 
   const body = new Group();
   g.add(body);
 
-  const hut = box(3.4, 2.6, 3.2, "#3b2f52");
+  const hut = box(3.4, 2.6, 3.2, "#2a1c22");
   hut.position.y = 1.4;
   hut.rotation.z = 0.07;
   body.add(hut);
 
-  const roof = pyramid(2.9, 2.1, "#5a3d8c");
+  const roof = pyramid(2.9, 2.1, "#41242c");
   roof.position.set(0.1, 3.5, 0);
   roof.rotation.z = 0.16;
   roof.rotation.y = 0.35;
   body.add(roof);
 
-  const doorM = mat("#241c36", { emissive: "#7b4fd8", emissiveIntensity: 0.5 });
+  const doorM = mat("#1c1216", { emissive: PALETTE.alertRed, emissiveIntensity: 0.5 });
   const door = new Mesh(new BoxGeometry(0.3, 1.7, 1.1), doorM);
   door.position.set(1.72, 1.0, 0.4);
   body.add(door);
 
-  const winMat = mat("#1c1730", { emissive: "#9d6cff", emissiveIntensity: 0.8 });
+  const winMat = mat("#1a1014", { emissive: PALETTE.alertRed, emissiveIntensity: 0.8 });
   const winA = new Mesh(new BoxGeometry(0.7, 0.7, 0.2), winMat);
   winA.position.set(-0.7, 1.8, 1.65);
   const winB = new Mesh(new BoxGeometry(0.2, 0.7, 0.7), winMat);
   winB.position.set(-1.75, 1.6, -0.5);
   body.add(winA, winB);
 
-  const crystalMat = mat("#b388ff", { emissive: "#8a4fff", emissiveIntensity: 1.0 });
+  // rooftop alert beacon
+  const crystalMat = mat(PALETTE.alertRed, { emissive: PALETTE.alertRed, emissiveIntensity: 1.0 });
   const crystal = new Mesh(new OctahedronGeometry(0.55), crystalMat);
   crystal.position.set(0.1, 5.0, 0);
   crystal.castShadow = true;
   body.add(crystal);
 
   const fogMat = new MeshStandardMaterial({
-    color: "#7b4fd8",
-    emissive: "#7b4fd8",
+    color: PALETTE.alertRed,
+    emissive: PALETTE.alertRed,
     emissiveIntensity: 0.7,
     transparent: true,
     opacity: 0,
@@ -1061,7 +1170,7 @@ function createMystery(spec: BuildingSpec): BuildingInstance {
   fog.position.y = 0.06;
   g.add(fog);
 
-  const runeMat = mat("#c9a6ff", { emissive: "#9d6cff", emissiveIntensity: 1.1 });
+  const runeMat = mat("#ffd23f", { emissive: PALETTE.amber, emissiveIntensity: 1.1 });
   const runes = [0, 1, 2].map(() => {
     const r = new Mesh(new BoxGeometry(0.3, 0.42, 0.08), runeMat);
     r.castShadow = false;
@@ -1081,7 +1190,7 @@ function createMystery(spec: BuildingSpec): BuildingInstance {
   }
 
   return {
-    key: "mystery",
+    key: "incident",
     group: g,
     footprint: footprintOf(spec),
     door: { x: spec.doorX, z: spec.doorZ },
@@ -1129,7 +1238,327 @@ function createMystery(spec: BuildingSpec): BuildingInstance {
 }
 
 // ---------------------------------------------------------------------------
-// Perimeter walls — instanced stone ring; also seals the nav grid.
+// Security Gate — approvals & security scans. Barrier arm + badge reader.
+// ---------------------------------------------------------------------------
+function createGate(spec: BuildingSpec): BuildingInstance {
+  const g = new Group();
+  g.name = "gate";
+  g.position.set(spec.x, 0, spec.z);
+
+  const pad = box(5, 0.3, 5, PALETTE.panelMid);
+  pad.position.y = 0.15;
+  g.add(pad);
+
+  // guard booth
+  const booth = box(1.5, 2.2, 1.5, PALETTE.panelDark);
+  booth.position.set(-1.4, 1.25, -0.9);
+  g.add(booth);
+  const boothWin = box(0.9, 0.7, 0.1, "#0d1420", {
+    emissive: PALETTE.screen,
+    emissiveIntensity: 0.55,
+  });
+  boothWin.position.set(-1.4, 1.6, -0.12);
+  g.add(boothWin);
+  const roofCap = box(1.8, 0.3, 1.8, PALETTE.metal);
+  roofCap.position.set(-1.4, 2.5, -0.9);
+  g.add(roofCap);
+  const sign = box(0.9, 0.6, 0.08, PALETTE.amber, {
+    emissive: PALETTE.amber,
+    emissiveIntensity: 0.3,
+  });
+  sign.position.set(-1.4, 2.05, -0.06);
+  g.add(sign);
+
+  // badge scanner post
+  const scanner = box(0.5, 1.5, 0.5, "#20263a");
+  scanner.position.set(1.5, 0.9, 1.2);
+  g.add(scanner);
+  const lightMat = mat(PALETTE.passGreen, { emissive: PALETTE.passGreen, emissiveIntensity: 1.0 });
+  const light = new Mesh(new SphereGeometry(0.2, 10, 8), lightMat);
+  light.position.set(1.5, 1.8, 1.2);
+  g.add(light);
+  const readerMat = mat("#0d1420", { emissive: PALETTE.teal, emissiveIntensity: 0.7 });
+  const reader = new Mesh(new BoxGeometry(0.34, 0.44, 0.1), readerMat);
+  reader.position.set(1.5, 1.1, 1.5);
+  g.add(reader);
+
+  // barrier arm across the south edge
+  const pivotPost = cylinder(0.14, 0.16, 1.1, "#59617a");
+  pivotPost.position.set(-2.3, 0.55, 2.1);
+  g.add(pivotPost);
+  const barrierPivot = new Group();
+  barrierPivot.position.set(-2.3, 1.0, 2.1);
+  const arm = new Mesh(new BoxGeometry(4.2, 0.18, 0.22), mat("#e8ecf4"));
+  arm.position.x = 2.1;
+  for (let i = 0; i < 4; i++) {
+    const stripe = box(0.5, 0.2, 0.24, PALETTE.alertRed);
+    stripe.position.x = -1.6 + i * 1.0;
+    arm.add(stripe);
+  }
+  barrierPivot.add(arm);
+  g.add(barrierPivot);
+
+  let scanT = -1;
+
+  function scanBadge(): void {
+    scanT = 0;
+  }
+
+  return {
+    key: "gate",
+    group: g,
+    footprint: footprintOf(spec),
+    door: { x: spec.doorX, z: spec.doorZ },
+    scanBadge,
+    update(dt, elapsed) {
+      if (scanT >= 0) {
+        scanT += dt;
+        const RAISE = 0.45;
+        const HOLD = 1.7;
+        const LOWER = 0.55;
+        if (scanT < RAISE) {
+          barrierPivot.rotation.z = (scanT / RAISE) * 1.15;
+        } else if (scanT < RAISE + HOLD) {
+          barrierPivot.rotation.z = 1.15;
+        } else if (scanT < RAISE + HOLD + LOWER) {
+          const k = (scanT - RAISE - HOLD) / LOWER;
+          barrierPivot.rotation.z = 1.15 * (1 - k);
+        } else {
+          barrierPivot.rotation.z = 0;
+          scanT = -1;
+          lightMat.color.set(PALETTE.passGreen);
+          lightMat.emissive.set(PALETTE.passGreen);
+        }
+        if (scanT >= 0) {
+          lightMat.color.set(PALETTE.amber);
+          lightMat.emissive.set(PALETTE.amber);
+          lightMat.emissiveIntensity = 1.1 + 0.7 * Math.sin(scanT * 18);
+          readerMat.emissiveIntensity = 1.4 + 0.6 * Math.sin(scanT * 14);
+        }
+      } else {
+        lightMat.emissiveIntensity = 0.9 + 0.35 * Math.sin(elapsed * 2.4);
+        readerMat.emissiveIntensity = 0.6 + 0.25 * Math.sin(elapsed * 3.1 + 1.4);
+        barrierPivot.rotation.z = 0;
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Debug Bay — debug sessions. Breakpoints light up, bug gets squashed.
+// ---------------------------------------------------------------------------
+function createDebug(spec: BuildingSpec): BuildingInstance {
+  const g = new Group();
+  g.name = "debug";
+  g.position.set(spec.x, 0, spec.z);
+
+  const pad = box(5, 0.3, 5, PALETTE.panelMid);
+  pad.position.y = 0.15;
+  g.add(pad);
+
+  const backWall = box(5, 2.4, 0.4, PALETTE.panelDark);
+  backWall.position.set(0, 1.35, -2.1);
+  g.add(backWall);
+
+  const awning = box(5.2, 0.3, 1.3, PALETTE.metal);
+  awning.position.set(0, 2.65, -1.8);
+  g.add(awning);
+
+  // debugger screen on the back wall
+  const screenFrame = box(3.0, 1.7, 0.12, "#111726");
+  screenFrame.position.set(0, 1.7, -1.86);
+  g.add(screenFrame);
+  const screenMat = mat("#0d1420", { emissive: PALETTE.failRed, emissiveIntensity: 0.45 });
+  const screen = new Mesh(new BoxGeometry(2.7, 1.4, 0.14), screenMat);
+  screen.position.set(0, 1.7, -1.8);
+  g.add(screen);
+
+  // trace lines on the screen
+  const traceMat = mat(PALETTE.failRed, { emissive: PALETTE.failRed, emissiveIntensity: 0.9 });
+  for (let i = 0; i < 4; i++) {
+    const line = new Mesh(new BoxGeometry(1.9 - i * 0.3, 0.1, 0.05), traceMat);
+    line.position.set(-0.3, 2.1 - i * 0.3, -1.72);
+    g.add(line);
+  }
+
+  // desk with keyboard
+  const deskTop = box(2.8, 0.14, 1.0, PALETTE.wood);
+  deskTop.position.set(0, 0.78, 0.4);
+  g.add(deskTop);
+  for (const lx of [-1.2, 1.2]) {
+    const leg = box(0.12, 0.7, 0.8, "#20263a");
+    leg.position.set(lx, 0.37, 0.4);
+    g.add(leg);
+  }
+  const keyboard = box(0.9, 0.06, 0.34, "#151b2b");
+  keyboard.position.set(0, 0.88, 0.5);
+  g.add(keyboard);
+
+  // breakpoint dots along the back wall
+  const dotMats: MeshStandardMaterial[] = [];
+  for (let i = 0; i < 5; i++) {
+    const dm = mat(PALETTE.alertRed, { emissive: PALETTE.alertRed, emissiveIntensity: 0.25 });
+    const dot = new Mesh(new SphereGeometry(0.1, 8, 6), dm);
+    dot.position.set(-1.6 + i * 0.8, 2.5, -1.78);
+    g.add(dot);
+    dotMats.push(dm);
+  }
+
+  // the bug on the desk
+  const bug = new Group();
+  const bugBody = box(0.4, 0.26, 0.3, "#3a2a16");
+  const eyeA = box(0.07, 0.07, 0.05, PALETTE.failRed, {
+    emissive: PALETTE.failRed,
+    emissiveIntensity: 1.2,
+  });
+  eyeA.position.set(-0.1, 0.06, 0.16);
+  const eyeB = eyeA.clone() as Mesh;
+  eyeB.position.x = 0.1;
+  bug.add(bugBody, eyeA, eyeB);
+  bug.position.set(0.6, 1.05, 0.4);
+  bug.visible = false;
+  g.add(bug);
+
+  let breakT = -1;
+
+  function debugBreak(): void {
+    breakT = 0;
+    bug.visible = true;
+    bug.scale.setScalar(1);
+  }
+
+  return {
+    key: "debug",
+    group: g,
+    footprint: footprintOf(spec),
+    door: { x: spec.doorX, z: spec.doorZ },
+    debugBreak,
+    update(dt, elapsed) {
+      if (breakT >= 0) {
+        breakT += dt;
+        // breakpoints light up one by one
+        dotMats.forEach((m, i) => {
+          m.emissiveIntensity = breakT > i * 0.22 && breakT < 3.4 ? 1.8 : 0.25;
+        });
+        // screen flickers while paused, then calms down
+        screenMat.emissiveIntensity =
+          breakT < 2.2 ? 1.1 + 0.5 * Math.sin(breakT * 34) : 0.45;
+        traceMat.emissiveIntensity = breakT < 2.2 ? 1.6 : 0.9;
+        // the bug gets squashed partway through
+        if (breakT > 1.2 && breakT < 2.0) {
+          bug.scale.setScalar(Math.max(0.01, 1 - (breakT - 1.2) / 0.8));
+        } else if (breakT >= 2.0) {
+          bug.visible = false;
+        }
+        if (breakT >= 4) {
+          breakT = -1;
+          dotMats.forEach((m) => (m.emissiveIntensity = 0.25));
+        }
+      } else {
+        dotMats.forEach((m, i) => {
+          m.emissiveIntensity = 0.2 + 0.15 * Math.sin(elapsed * 1.8 + i * 1.2);
+        });
+        screenMat.emissiveIntensity = 0.4 + 0.15 * Math.sin(elapsed * 3.3);
+      }
+      bug.rotation.y = Math.sin(elapsed * 5) * 0.4;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ship Dock — release events. A cargo container loads onto the stack.
+// ---------------------------------------------------------------------------
+const CARGO_COLORS = ["#e05252", "#ffb84d", "#4fe3c1", "#4a7fd0"];
+
+function createDock(spec: BuildingSpec): BuildingInstance {
+  const g = new Group();
+  g.name = "dock";
+  g.position.set(spec.x, 0, spec.z);
+
+  const pad = box(5, 0.3, 4, PALETTE.panelMid);
+  pad.position.y = 0.15;
+  g.add(pad);
+
+  // hazard stripes along the front edge
+  for (let i = 0; i < 5; i++) {
+    const stripe = box(0.5, 0.06, 0.4, i % 2 ? "#151b2b" : PALETTE.amber, {
+      emissive: i % 2 ? "#000000" : PALETTE.amber,
+      emissiveIntensity: i % 2 ? 0 : 0.25,
+    });
+    stripe.position.set(-2 + i, 0.33, 1.7);
+    g.add(stripe);
+  }
+
+  // crane: post + jib + hook line
+  const cranePost = cylinder(0.16, 0.2, 3.4, "#59617a");
+  cranePost.position.set(-1.8, 1.85, -0.6);
+  g.add(cranePost);
+  const jib = box(3.4, 0.18, 0.18, "#59617a");
+  jib.position.set(-0.3, 3.4, -0.6);
+  g.add(jib);
+  const hookLine = box(0.05, 1.0, 0.05, "#151b2b");
+  hookLine.position.set(1.2, 2.85, -0.6);
+  g.add(hookLine);
+  const hook = box(0.3, 0.24, 0.3, "#8f9bb3");
+  hook.position.set(1.2, 2.3, -0.6);
+  g.add(hook);
+  const cab = box(0.7, 0.6, 0.7, PALETTE.amber, { emissive: PALETTE.amber, emissiveIntensity: 0.2 });
+  cab.position.set(-1.8, 3.7, -0.6);
+  g.add(cab);
+
+  // container stack: two base slots + two top slots
+  const SLOTS: Array<[number, number, number]> = [
+    [1.3, 0.55, -0.75],
+    [1.3, 0.55, 0.75],
+    [1.3, 1.05, -0.75],
+    [1.3, 1.05, 0.75],
+  ];
+  const containers: Mesh[] = [];
+  const fx = new Fx(() => g.parent);
+  let cargoN = 0;
+
+  function launchCargo(): void {
+    const idx = containers.length % SLOTS.length;
+    if (containers.length >= SLOTS.length) {
+      const victim = containers.shift()!;
+      fx.fade(victim, 0.5);
+    }
+    const [sx, sy, sz] = SLOTS[idx]!;
+    const color = CARGO_COLORS[cargoN++ % CARGO_COLORS.length]!;
+    const crate = box(1.0, 0.5, 0.7, color, {
+      emissive: color,
+      emissiveIntensity: 0.15,
+      metalness: 0.2,
+      roughness: 0.6,
+    });
+    const from = new Vector3(spec.x + 1.2, 3.0, spec.z - 0.6);
+    const to = new Vector3(spec.x + sx, sy, spec.z + sz);
+    fx.fly(crate, from, to, 1.6, 0.9, (m) => {
+      m.position.set(sx, sy, sz);
+      g.add(m);
+      containers.push(m);
+    });
+  }
+
+  return {
+    key: "dock",
+    group: g,
+    footprint: footprintOf(spec),
+    door: { x: spec.doorX, z: spec.doorZ },
+    launchCargo,
+    update(dt, elapsed) {
+      jib.position.y = 3.4 + Math.sin(elapsed * 1.4) * 0.06;
+      hookLine.scale.y = 1 + Math.sin(elapsed * 1.4) * 0.1;
+      hook.position.y = 2.3 + Math.sin(elapsed * 1.4) * 0.12;
+      hook.rotation.y = Math.sin(elapsed * 0.9) * 0.3;
+      cab.rotation.y = Math.sin(elapsed * 0.5) * 0.12;
+      fx.update(dt);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Perimeter firewall — instanced barrier ring; also seals the nav grid.
 // ---------------------------------------------------------------------------
 export function createWalls(grid: NavGrid): Group {
   const root = new Group();
@@ -1161,7 +1590,7 @@ export function createWalls(grid: NavGrid): Group {
 
   const blocks = new InstancedMesh(
     new BoxGeometry(1.9, 1.6, 1.05),
-    mat(PALETTE.stone, { roughness: 0.95 }),
+    mat("#4a556b", { roughness: 0.8, metalness: 0.35 }),
     placements.length,
   );
   blocks.castShadow = true;
@@ -1177,7 +1606,7 @@ export function createWalls(grid: NavGrid): Group {
 
   const merlons = new InstancedMesh(
     new BoxGeometry(0.85, 0.55, 1.1),
-    mat("#8a94a6", { roughness: 0.95 }),
+    mat("#d99a3a", { roughness: 0.7 }),
     placements.length,
   );
   merlons.castShadow = true;
@@ -1193,53 +1622,68 @@ export function createWalls(grid: NavGrid): Group {
   const towers = WALLS.map((s) => [s.ax, s.az] as const);
   const towerBases = new InstancedMesh(
     new CylinderGeometry(1.05, 1.2, 2.7, 10),
-    mat(PALETTE.stone, { roughness: 0.95 }),
+    mat("#39435a", { roughness: 0.8, metalness: 0.35 }),
     towers.length,
   );
   towerBases.castShadow = true;
-  const towerRoofs = new InstancedMesh(
-    new ConeGeometry(1.4, 1.5, 8),
-    mat(PALETTE.roofRed, { roughness: 0.85 }),
+  const towerMasts = new InstancedMesh(
+    new CylinderGeometry(0.08, 0.14, 1.8, 6),
+    mat("#59617a", { roughness: 0.5, metalness: 0.5 }),
     towers.length,
   );
-  towerRoofs.castShadow = true;
+  towerMasts.castShadow = true;
+  const towerBeacons = new InstancedMesh(
+    new SphereGeometry(0.2, 8, 6),
+    mat(PALETTE.alertRed, { emissive: PALETTE.alertRed, emissiveIntensity: 1.4 }),
+    towers.length,
+  );
   towers.forEach(([x, z], i) => {
     dummy.position.set(x, 1.35, z);
     dummy.rotation.set(0, 0, 0);
     dummy.updateMatrix();
     towerBases.setMatrixAt(i, dummy.matrix);
-    dummy.position.set(x, 3.45, z);
+    dummy.position.set(x, 3.6, z);
     dummy.updateMatrix();
-    towerRoofs.setMatrixAt(i, dummy.matrix);
+    towerMasts.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, 4.6, z);
+    dummy.updateMatrix();
+    towerBeacons.setMatrixAt(i, dummy.matrix);
   });
   towerBases.instanceMatrix.needsUpdate = true;
-  towerRoofs.instanceMatrix.needsUpdate = true;
-  root.add(towerBases, towerRoofs);
+  towerMasts.instanceMatrix.needsUpdate = true;
+  towerBeacons.instanceMatrix.needsUpdate = true;
+  root.add(towerBases, towerMasts, towerBeacons);
 
   return root;
 }
 
 export function createBuilding(spec: BuildingSpec): BuildingInstance {
   switch (spec.key) {
-    case "townHall":
-      return createTownHall(spec);
-    case "library":
-      return createLibrary(spec);
-    case "forge":
-      return createForge(spec);
-    case "barracks":
-      return createBarracks(spec);
-    case "archery":
-      return createArchery(spec);
-    case "goldMine":
-      return createGoldMine(spec);
-    case "elixir":
-      return createElixir(spec);
-    case "trophyHall":
-      return createTrophyHall(spec);
-    case "clockTower":
-      return createClockTower(spec);
-    case "mystery":
-      return createMystery(spec);
+    case "command":
+      return createCommand(spec);
+    case "docs":
+      return createDocs(spec);
+    case "devfloor":
+      return createDevFloor(spec);
+    case "ops":
+      return createOps(spec);
+    case "qa":
+      return createQA(spec);
+    case "racks":
+      return createRacks(spec);
+    case "power":
+      return createPower(spec);
+    case "release":
+      return createRelease(spec);
+    case "noc":
+      return createNOC(spec);
+    case "incident":
+      return createIncident(spec);
+    case "gate":
+      return createGate(spec);
+    case "debug":
+      return createDebug(spec);
+    case "dock":
+      return createDock(spec);
   }
 }

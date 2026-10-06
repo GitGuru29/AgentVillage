@@ -110,19 +110,25 @@ function script(): MockEvent[] {
   t += 1900;
   events.push(e({ agent_id: "sentinel", type: "test", detail: "1 failed: A* cuts corner", duration_ms: 1750 }, t));
   t += 1500;
+  events.push(e({ agent_id: "brick", type: "debug", detail: "breakpoint at grid.ts:142 — A* corner cut" }, t));
+  t += 1600;
+  events.push(e({ agent_id: "sentinel", type: "security_check", detail: "dependency audit: 0 critical CVEs" }, t));
+  t += 1400;
 
   // Wrappers
   events.push(e({ agent_id: "atlas", type: "done", detail: "Phase 1 ingest + scene scaffold complete" }, t));
   t += 900;
   events.push(e({ agent_id: "brick", type: "done", detail: "Replay reducer + snapshots" }, t));
   t += 1400;
+  events.push(e({ agent_id: "atlas", type: "ship", detail: "release v0.3.0 → production", duration_ms: 2400 }, t));
+  t += 1800;
 
   return events;
 }
 
 const CHAOS_TYPES = [
   "plan", "read", "write", "tool_call", "test", "error", "approval", "done",
-  "token_usage", "mystery_ritual",
+  "token_usage", "security_check", "debug", "ship", "mystery_ritual",
 ];
 
 function chaosEvent(): MockEvent {
@@ -143,6 +149,9 @@ function chaosEvent(): MockEvent {
   if (type === "error") ev.detail = `boom: line ${Math.ceil(Math.random() * 900)}`;
   if (type === "approval") ev.detail = "Allow this action to continue?";
   if (type === "test") ev.detail = Math.random() > 0.35 ? "all green" : "1 failed";
+  if (type === "ship") ev.detail = `release v0.${Math.ceil(Math.random() * 9)}.${Math.ceil(Math.random() * 9)} → production`;
+  if (type === "security_check") ev.detail = Math.random() > 0.5 ? "dependency audit: clean" : "signing key rotated";
+  if (type === "debug") ev.detail = `breakpoint hit at line ${Math.ceil(Math.random() * 600)}`;
   if (type === "token_usage") {
     ev.tokens_in = Math.round(500 + Math.random() * 6000);
     ev.tokens_out = Math.round(100 + Math.random() * 2000);
@@ -209,8 +218,11 @@ async function main(): Promise<void> {
 
   console.log("[mock] scripted scenario (3 agents), looping");
   do {
+    let prev = 0;
     for (const ev of script()) {
-      await sleep(ev.delayMs);
+      // ev.delayMs is the event's absolute scenario time — sleep the delta.
+      await sleep(Math.max(0, ev.delayMs - prev));
+      prev = ev.delayMs;
       client.send(ev);
     }
     if (ONCE) break;

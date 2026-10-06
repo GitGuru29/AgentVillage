@@ -14,19 +14,22 @@ function pathFootprints() {
 
 describe("event → building mapping", () => {
   it("routes every known type to its building", () => {
-    expect(buildingForType("plan")).toBe("townHall");
-    expect(buildingForType("done")).toBe("townHall");
-    expect(buildingForType("read")).toBe("library");
-    expect(buildingForType("write")).toBe("forge");
-    expect(buildingForType("tool_call")).toBe("barracks");
-    expect(buildingForType("test")).toBe("archery");
+    expect(buildingForType("plan")).toBe("command");
+    expect(buildingForType("done")).toBe("command");
+    expect(buildingForType("read")).toBe("docs");
+    expect(buildingForType("write")).toBe("devfloor");
+    expect(buildingForType("tool_call")).toBe("ops");
+    expect(buildingForType("test")).toBe("qa");
+    expect(buildingForType("approval")).toBe("gate");
+    expect(buildingForType("security_check")).toBe("gate");
+    expect(buildingForType("debug")).toBe("debug");
+    expect(buildingForType("ship")).toBe("dock");
   });
 
-  it("routes odd types to the Mystery Hut, passive ones nowhere", () => {
-    expect(buildingForType("mystery_ritual")).toBe("mystery");
-    expect(buildingForType("error")).toBe("mystery");
-    expect(buildingForType("approval")).toBe("mystery");
-    expect(buildingForType("token_usage")).toBeNull(); // gold mine reacts passively
+  it("routes odd types to the Incident Room, passive ones nowhere", () => {
+    expect(buildingForType("mystery_ritual")).toBe("incident");
+    expect(buildingForType("error")).toBe("incident");
+    expect(buildingForType("token_usage")).toBeNull(); // racks react passively
     expect(buildingForType("")).toBeNull();
   });
 });
@@ -54,6 +57,8 @@ describe("Village (headless)", () => {
     { agent_id: "sentinel", type: "tool_call", tool: "shell", duration_ms: 3000 },
     { agent_id: "sentinel", type: "test", detail: "34 passed" },
     { agent_id: "sentinel", type: "test", detail: "1 failed: corner cut" },
+    { agent_id: "sentinel", type: "security_check", detail: "audit clean" },
+    { agent_id: "brick", type: "debug", detail: "breakpoint hit" },
     {
       agent_id: "atlas",
       type: "token_usage",
@@ -62,6 +67,7 @@ describe("Village (headless)", () => {
       cost: 0.042,
     },
     { agent_id: "brick", type: "done", detail: "shipped" },
+    { agent_id: "atlas", type: "ship", detail: "release v0.3.0" },
     { agent_id: "ghost", type: "unseen_ritual" },
   ];
 
@@ -74,10 +80,10 @@ describe("Village (headless)", () => {
     for (const e of scenario) village.handleEvent(e);
     for (let i = 0; i < 900; i++) village.update(1 / 60);
 
-    expect(village.counters.gold).toBe(3500);
-    expect(village.counters.elixir).toBeCloseTo(0.042, 5);
-    expect(village.counters.trophies).toBe(1);
-    expect(village.counters.total).toBe(4); // ghost → Mystery Hut
+    expect(village.counters.tokens).toBe(3500);
+    expect(village.counters.cost).toBeCloseTo(0.042, 5);
+    expect(village.counters.shipped).toBe(1);
+    expect(village.counters.total).toBe(4); // ghost → Incident Room
     expect(snapshots.length).toBeGreaterThan(0);
   });
 
@@ -97,25 +103,43 @@ describe("Village (headless)", () => {
     expect(village.counters.active).toBe(0); // task done → idle again
   });
 
-  it("unknown events send a builder to the Mystery Hut", () => {
+  it("unknown events send a builder to the Incident Room", () => {
     const village = new Village(new Scene());
     village.handleEvent({ agent_id: "weird", type: "sacrifice", detail: "???" });
     expect(village.counters.total).toBe(1);
     for (let i = 0; i < 1800; i++) village.update(1 / 60);
     expect(village.counters.active).toBe(0);
   });
+
+  it("agents reach the gate, debug bay and dock", () => {
+    const village = new Village(new Scene());
+    village.handleEvent({ agent_id: "g1", type: "security_check", detail: "audit" });
+    village.handleEvent({ agent_id: "d1", type: "debug", detail: "breakpoint" });
+    village.handleEvent({ agent_id: "s1", type: "ship", detail: "v0.3.0" });
+    expect(village.counters.total).toBe(3);
+    for (let i = 0; i < 3600; i++) village.update(1 / 60); // 60s
+    expect(village.counters.active).toBe(0); // all three finished
+  });
 });
 
-describe("Phase 3 world", () => {
+describe("Phase 4 world", () => {
   it("every building is constructed with its hooks", () => {
     const village = new Village(new Scene());
     const { buildings } = village;
-    expect(buildings.goldMine.mineGold).toBeTypeOf("function");
-    expect(buildings.elixir.collect).toBeTypeOf("function");
-    expect(buildings.trophyHall.addTrophy).toBeTypeOf("function");
-    expect(buildings.mystery.pulse).toBeTypeOf("function");
-    expect(buildings.clockTower.group.name).toBe("clockTower");
-    expect(Object.keys(buildings)).toHaveLength(10);
+    expect(buildings.command.pulse).toBeTypeOf("function");
+    expect(buildings.docs.spawnDoc).toBeTypeOf("function");
+    expect(buildings.devfloor.pushCode).toBeTypeOf("function");
+    expect(buildings.ops.runTool).toBeTypeOf("function");
+    expect(buildings.qa.testResult).toBeTypeOf("function");
+    expect(buildings.racks.rackLoad).toBeTypeOf("function");
+    expect(buildings.power.meterSpike).toBeTypeOf("function");
+    expect(buildings.release.logRelease).toBeTypeOf("function");
+    expect(buildings.incident.pulse).toBeTypeOf("function");
+    expect(buildings.gate.scanBadge).toBeTypeOf("function");
+    expect(buildings.debug.debugBreak).toBeTypeOf("function");
+    expect(buildings.dock.launchCargo).toBeTypeOf("function");
+    expect(buildings.noc.group.name).toBe("noc");
+    expect(Object.keys(buildings)).toHaveLength(13);
   });
 
   it("walls seal the perimeter but the village stays walkable", () => {
@@ -127,13 +151,16 @@ describe("Phase 3 world", () => {
     expect(grid.isBlockedWorld(21, -17)).toBe(true); // NE chamfer
     expect(grid.isBlockedWorld(0, 7.5)).toBe(false); // plaza
     expect(grid.isBlockedWorld(0, 11)).toBe(false); // idle camp
-    expect(grid.isBlockedWorld(-9.5, -15.5)).toBe(true); // gold mine footprint
-    expect(grid.isBlockedWorld(9.5, -15.5)).toBe(true); // elixir footprint
-    expect(grid.isBlockedWorld(-20.5, 2)).toBe(true); // mystery footprint
-    expect(grid.isBlockedWorld(20.5, 2)).toBe(true); // clock footprint
+    expect(grid.isBlockedWorld(-9.5, -15.5)).toBe(true); // racks footprint
+    expect(grid.isBlockedWorld(9.5, -15.5)).toBe(true); // power footprint
+    expect(grid.isBlockedWorld(-20.5, 2)).toBe(true); // incident footprint
+    expect(grid.isBlockedWorld(20.5, 2)).toBe(true); // noc footprint
+    expect(grid.isBlockedWorld(-19.5, 12.5)).toBe(true); // gate footprint
+    expect(grid.isBlockedWorld(18.5, -13)).toBe(true); // debug footprint
+    expect(grid.isBlockedWorld(20, 12)).toBe(true); // dock footprint
   });
 
-  it("every dirt path stays inside the walls and off other buildings", () => {
+  it("every walkway stays inside the walls and off other buildings", () => {
     const footprints = pathFootprints();
     for (const [[ax, az], [bx, bz]] of pathSegments()) {
       const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.4);

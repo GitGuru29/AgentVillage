@@ -1,28 +1,28 @@
 import type { Counters } from "../world/village";
 
-/** Game-HUD top bar: gold (tokens), elixir (cost), trophies, builders. */
+/** Ops-HUD top bar: tokens, cost, shipped releases, agents online. */
 export class Hud {
-  private gold: HTMLElement | null;
-  private elixir: HTMLElement | null;
-  private trophies: HTMLElement | null;
-  private builders: HTMLElement | null;
+  private tokens: HTMLElement | null;
+  private cost: HTMLElement | null;
+  private shipped: HTMLElement | null;
+  private agents: HTMLElement | null;
   private last = "";
 
   constructor() {
-    this.gold = document.getElementById("stat-gold");
-    this.elixir = document.getElementById("stat-elixir");
-    this.trophies = document.getElementById("stat-trophies");
-    this.builders = document.getElementById("stat-builders");
-    this.update({ gold: 0, elixir: 0, trophies: 0, active: 0, total: 0 });
+    this.tokens = document.getElementById("stat-tokens");
+    this.cost = document.getElementById("stat-cost");
+    this.shipped = document.getElementById("stat-shipped");
+    this.agents = document.getElementById("stat-agents");
+    this.update({ tokens: 0, cost: 0, shipped: 0, active: 0, total: 0 });
   }
 
   update(c: Counters): void {
-    const next = `${c.gold}|${c.elixir}|${c.trophies}|${c.active}|${c.total}`;
+    const next = `${c.tokens}|${c.cost}|${c.shipped}|${c.active}|${c.total}`;
     if (next === this.last) return;
     this.last = next;
-    if (this.gold) this.gold.textContent = c.gold.toLocaleString("en-US");
-    if (this.elixir) this.elixir.textContent = `$${c.elixir.toFixed(2)}`;
-    if (this.trophies) this.trophies.textContent = String(c.trophies);
-    if (this.builders) this.builders.textContent = `${c.active} / ${c.total}`;
+    if (this.tokens) this.tokens.textContent = c.tokens.toLocaleString("en-US");
+    if (this.cost) this.cost.textContent = `$${c.cost.toFixed(2)}`;
+    if (this.shipped) this.shipped.textContent = String(c.shipped);
+    if (this.agents) this.agents.textContent = `${c.active} / ${c.total}`;
   }
 }

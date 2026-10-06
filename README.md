@@ -4,10 +4,13 @@ An isometric 3D base — Clash of Clans style — that visualizes your AI agents
 working in real time. Every building, animation and sound maps to a real agent
 event. It's an observability tool disguised as a game.
 
-> **Status: Phase 3 — the village is built.** Ten buildings behind a fortified
-> wall: animated robot builders with A* pathfinding, name tags, top-bar HUD and
-> event-driven FX for every agent event type. Remaining: richer agent states,
-> HUD depth and polish.
+> **Status: Phase 4 — the data-center re-theme.** The village is now an IT
+> operations floor: thirteen buildings behind a metal firewall — command
+> center, docs archive, dev floor, ops bench, QA lab, server racks, power
+> meter, release wall, incident room, NOC, security gate, debug bay and ship
+> dock — with animated robot builders (A* pathfinding, name tags), a
+> tokens/cost/shipped/agents HUD and event-driven FX for every event type.
+> Remaining: richer agent states, HUD depth and polish.
 
 ## Quick start
 
@@ -31,20 +34,24 @@ npm run test               # vitest (A* grid + village event routing)
 
 | Building | Events | Animation |
 | --- | --- | --- |
-| **Town Hall** (center) | `plan`, `done` | roof pulse; every `done` = trophy |
-| **Library** (NW) | `read` | a book flies out to the pile |
-| **Forge** (NE) | `write` | glowing brick launched; stacks grow per agent |
-| **Barracks** (SW) | `tool_call` | tool units march out of the door |
-| **Archery Range** (SE) | `test` | flag flips green/red; crater on failure |
-| **Mystery Hut** (W) | `error`, `approval`, unknown types | shudder + fog pulse; runes orbit |
-| **Gold Mine** (NW) | passive (`token_usage`) | cave glow; coins accumulate per token batch |
-| **Elixir Collector** (NE) | passive (`cost`) | tank liquid level + bubbles |
-| **Trophy Hall** (N) | passive (`done`) | trophies fly onto the shelf |
-| **Clock Tower** (E) | ambient | gears grind; hands advance with session time |
+| **Command Center** (center) | `plan`, `done` | roof screens flare with each plan/done |
+| **Docs Archive** (NW) | `read` | a document card flies out onto the pile |
+| **Dev Floor** (NE) | `write` | glowing code cubes launch and stack per task |
+| **Ops Bench** (SW) | `tool_call` | CLI bots march out of the door and return |
+| **QA Lab** (SE) | `test` | green flag on pass; scorch crater + crash orb on fail |
+| **Compute Cluster** (N) | passive (`token_usage`) | data packets shower onto the heap |
+| **Power & Billing** (N) | passive (`cost`) | battery level shows; meter needle spikes |
+| **Release Wall** (N) | passive (`done`) | a version plaque lands on the board |
+| **Incident Room** (W) | `error`, unknown types | red strobe, twitchy shudder, glowing runes |
+| **NOC Monitors** (E) | ambient | gauges, status lights, cooling fans |
+| **Security Gate** (SW) | `approval`, `security_check` | barrier arm raises; badge reader scans green→amber |
+| **Debug Bay** (NE) | `debug` | breakpoints light up one by one; the bug gets squashed |
+| **Ship Dock** (SE) | `ship` | a cargo container launches onto the stack |
 
-The base is ringed by **stone walls with corner towers** — the nav grid seals
-at the wall line, so builders only move inside. Dirt paths elbow around the
-Town Hall to each gate.
+The base is ringed by a **metal firewall** — instanced barrier blocks with
+amber merlons and beacon masts on the corner towers — and the nav grid seals
+at the wall line, so builders only move inside. Dark server-room tiles are
+crossed by lit walkways that elbow around the Command Center to each door.
 
 A robot builder per agent (max 12) spawns at the idle camp, pathfinds around
 buildings with A* (string-pulled, 96×96 grid) to the target's door, hammers
@@ -52,8 +59,9 @@ there for the event's duration, then wanders the camp until the next event.
 Builders separate so they never clip through each other, and each wears a
 floating name tag in its own color.
 
-**Top bar:** GOLD ← tokens, ELIXIR ← $ cost, TROPHIES ← completed tasks,
-BUILDERS ← busy/alive, plus the latest event ticker and a connection chip.
+**Top bar:** TOKENS ← `tokens_in`+`tokens_out`, COST ← $ cost, SHIPPED ←
+completed tasks, AGENTS ← busy/alive, plus the latest event ticker
+(`agent → event`) and a connection chip.
 
 ## Sending your own events
 
@@ -79,7 +87,7 @@ You can also send the same JSON over the WebSocket itself.
 {
   "agent_id": "atlas",
   "name": "Atlas",
-  "type": "plan | read | write | tool_call | test | error | approval | done | token_usage",
+  "type": "plan | read | write | tool_call | test | error | approval | security_check | debug | ship | done | token_usage",
   "detail": "free-form summary shown in bubbles and logs",
   "file": "src/world/grid.ts",
   "tool": "shell | git | web | mcp:...",
@@ -91,9 +99,13 @@ You can also send the same JSON over the WebSocket itself.
 }
 ```
 
-Unknown `type` values — and `error` / `approval` — are routed to the
-**Mystery Hut**; `token_usage` is absorbed passively by the resource
-buildings. `timestamp` and `id` are filled in server-side when missing.
+Routing: `plan`/`done` → Command Center, `read` → Docs Archive, `write` →
+Dev Floor, `tool_call` → Ops Bench, `test` → QA Lab, `approval`/
+`security_check` → Security Gate, `debug` → Debug Bay, `ship` → Ship Dock,
+`error` — and any unknown `type` — → Incident Room. `token_usage` is absorbed
+passively by the Compute Cluster, `cost` by Power & Billing, and every `done`
+also logs a plaque on the Release Wall. `timestamp` and `id` are filled in
+server-side when missing.
 
 ## Ingesting real agent logs
 
@@ -141,12 +153,12 @@ src/
   config.ts        WS url, iso camera angles, world bounds
   core/isoCamera.ts  orthographic iso camera (pan + zoom, no rotate)
   net/wsClient.ts  reconnecting WebSocket client
-  ui/hud.ts        top bar (gold/elixir/trophies/builders + ticker)
+  ui/hud.ts        top bar (tokens/cost/shipped/agents + ticker)
   world/
     grid.ts        96×96 A* with string-pull smoothing + LOS helpers
     layout.ts      building specs, routes, wall ring, palette, camps
-    terrain.ts     instanced grass/path/decor + footprint blocking
-    buildings.ts   ten buildings, walls + per-agent effects
+    terrain.ts     dark server-room floor, lit walkways, decor + footprint blocking
+    buildings.ts   thirteen buildings, firewall + per-agent effects
     builder.ts     robot builder (walk/hammer/idle, separation, tags)
     village.ts     event → building routing, counters, builder pool
 tests/             vitest: A* guarantees + headless village scenarios
@@ -158,6 +170,7 @@ tests/             vitest: A* guarantees + headless village scenarios
 2. ~~Five buildings (Town Hall, Library, Forge, Barracks, Archery Range)~~
 3. ~~Animated builders with A* pathfinding + name tags + top-bar HUD~~
 4. ~~Remaining buildings: Gold Mine, Elixir, Walls, Clock Tower, Trophy Hall, Mystery Hut~~
-5. Agent states: idle/thinking/working/approval/stuck/error/done/crashed
-6. HUD depth: agent side panel, toasts, minimap, replay scrubber
-7. Polish: day/night cycle, tilt-shift DOF, procedural SFX, 50+ agent instancing
+5. ~~IT re-theme: thirteen data-center buildings, new event types (`security_check` / `debug` / `ship`), tokens/cost/shipped HUD~~
+6. Agent states: idle/thinking/working/approval/stuck/error/done/crashed
+7. HUD depth: agent side panel, toasts, minimap, replay scrubber
+8. Polish: day/night cycle, tilt-shift DOF, procedural SFX, 50+ agent instancing

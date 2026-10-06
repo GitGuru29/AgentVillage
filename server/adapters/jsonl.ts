@@ -15,7 +15,7 @@ function pick(obj: Record<string, unknown>, keys: string[]): string | undefined 
 /**
  * Generic JSONL passthrough: any agent writing line-delimited JSON.
  * Lines that already match the village schema pass through untouched;
- * other JSON shapes are mapped best-effort (unknown → Mystery Hut).
+ * other JSON shapes are mapped best-effort (unknown → Incident Room).
  */
 export function jsonlParser(line: string, ctx: TailContext): RawEvent | null {
   let obj: unknown;

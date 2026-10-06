@@ -4,7 +4,7 @@ import type { LineParser, TailContext } from "./logTail";
 /**
  * Codex rollout JSONL adapter — maps `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
  * records (shape: { timestamp, ordinal, type, payload }) to village events.
- * Meta/telemetry record types are skipped so the Mystery Hut only lights up
+ * Meta/telemetry record types are skipped so the Incident Room only lights up
  * for genuinely unknown *event* types.
  */
 
@@ -139,6 +139,6 @@ export const codexParser: LineParser = (line: string, ctx: TailContext): RawEven
     return { ...base, type: "token_usage", tokens_in: tokensIn, tokens_out: tokensOut };
   }
 
-  // Unmapped record → let the Mystery Hut handle it.
+  // Unmapped record → let the Incident Room handle it.
   return { ...base, type: `codex:${innerType}`, detail: text(payload) };
 };

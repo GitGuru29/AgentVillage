@@ -5,28 +5,34 @@ import { NavGrid } from "./grid";
 import { BUILDINGS, IDLE_CAMP, type BuildingKey } from "./layout";
 import { createTerrain } from "./terrain";
 
-/** Which building an event type belongs to (unknown → Mystery Hut). */
+/** Which building an event type belongs to (unknown → Incident Room). */
 export function buildingForType(type: string): BuildingKey | null {
   switch (type) {
     case "plan":
     case "done":
-      return "townHall";
+      return "command";
     case "read":
-      return "library";
+      return "docs";
     case "write":
-      return "forge";
+      return "devfloor";
     case "tool_call":
-      return "barracks";
+      return "ops";
     case "test":
-      return "archery";
+      return "qa";
     case "error":
+      return "incident";
     case "approval":
-      return "mystery";
+    case "security_check":
+      return "gate";
+    case "ship":
+      return "dock";
+    case "debug":
+      return "debug";
     case "token_usage":
-      // passive: the Gold Mine reacts without sending a builder
+      // passive: the Compute Cluster reacts without sending a builder
       return null;
     default:
-      return type.length > 0 ? "mystery" : null;
+      return type.length > 0 ? "incident" : null;
   }
 }
 
@@ -37,12 +43,12 @@ export function testPassed(detail?: string): boolean {
 }
 
 export interface Counters {
-  /** tokens → gold */
-  gold: number;
-  /** cost in $ → elixir */
-  elixir: number;
-  /** completed tasks */
-  trophies: number;
+  /** tokens processed */
+  tokens: number;
+  /** cost in $ */
+  cost: number;
+  /** completed tasks shipped */
+  shipped: number;
   /** builders busy with a task */
   active: number;
   /** builders alive */
@@ -55,7 +61,7 @@ export class Village {
   readonly grid: NavGrid;
   readonly root = new Group();
   readonly buildings = {} as Record<BuildingKey, BuildingInstance>;
-  readonly counters: Counters = { gold: 0, elixir: 0, trophies: 0, active: 0, total: 0 };
+  readonly counters: Counters = { tokens: 0, cost: 0, shipped: 0, active: 0, total: 0 };
   onCounters?: (c: Counters) => void;
 
   private builders = new Map<string, Builder>();
@@ -87,28 +93,26 @@ export class Village {
     const tool = typeof e.tool === "string" ? e.tool : undefined;
     const duration = typeof e.duration_ms === "number" ? e.duration_ms : undefined;
     const name = typeof e.name === "string" && e.name.length > 0 ? e.name : agentId;
+    const cost = num(e.cost);
 
     // --- HUD counters ------------------------------------------------------
     if (type === "token_usage") {
       const tin = num(e.tokens_in);
       const tout = num(e.tokens_out);
       if (tin + tout > 0) {
-        this.counters.gold += tin + tout;
+        this.counters.tokens += tin + tout;
         this.dirty = true;
       }
-      const cost = num(e.cost);
       if (cost > 0) {
-        this.counters.elixir += cost;
+        this.counters.cost += cost;
         this.dirty = true;
       }
-    }
-    const cost = num(e.cost);
-    if (type !== "token_usage" && cost > 0) {
-      this.counters.elixir += cost;
+    } else if (cost > 0) {
+      this.counters.cost += cost;
       this.dirty = true;
     }
     if (type === "done") {
-      this.counters.trophies += 1;
+      this.counters.shipped += 1;
       this.dirty = true;
     }
 
@@ -117,32 +121,42 @@ export class Village {
     const tokens = type === "token_usage" ? num(e.tokens_in) + num(e.tokens_out) : 0;
     switch (type) {
       case "plan":
-        this.buildings.townHall.pulse?.(2.6);
+        this.buildings.command.pulse?.(2.6);
         break;
       case "done":
-        this.buildings.townHall.pulse?.(1.6);
+        this.buildings.command.pulse?.(1.6);
         break;
       case "read":
-        this.buildings.library.spawnBook?.();
+        this.buildings.docs.spawnDoc?.();
         break;
       case "write":
-        this.buildings.forge.launchBrick?.(agentId);
+        this.buildings.devfloor.pushCode?.(agentId);
         break;
       case "tool_call":
-        this.buildings.barracks.marchUnit?.(tool ?? "shell", duration ?? 1600);
+        this.buildings.ops.runTool?.(tool ?? "shell", duration ?? 1600);
         break;
       case "test":
-        this.buildings.archery.testResult?.(testPassed(detail));
+        this.buildings.qa.testResult?.(testPassed(detail));
+        break;
+      case "approval":
+      case "security_check":
+        this.buildings.gate.scanBadge?.();
+        break;
+      case "debug":
+        this.buildings.debug.debugBreak?.();
+        break;
+      case "ship":
+        this.buildings.dock.launchCargo?.();
         break;
       default:
         break;
     }
 
-    // passive FX: the economy row reacts without sending a builder
-    if (tokens > 0) this.buildings.goldMine.mineGold?.(tokens);
-    if (cost > 0) this.buildings.elixir.collect?.(cost);
-    if (type === "done") this.buildings.trophyHall.addTrophy?.();
-    if (key === "mystery") this.buildings.mystery.pulse?.();
+    // passive FX: the perimeter row reacts without sending a builder
+    if (tokens > 0) this.buildings.racks.rackLoad?.(tokens);
+    if (cost > 0) this.buildings.power.meterSpike?.(cost);
+    if (type === "done") this.buildings.release.logRelease?.();
+    if (key === "incident") this.buildings.incident.pulse?.();
 
     // --- route the builder ---------------------------------------------------
     if (key) {

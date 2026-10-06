@@ -22,10 +22,10 @@ iso.setSize(container.clientWidth, container.clientHeight);
 
 // --- scene ----------------------------------------------------------------
 const scene = new Scene();
-scene.background = new Color(0x9fd4f2);
+scene.background = new Color(0x0b0e1a);
 
-// Warm key light + sky fill, soft shadows.
-const sun = new DirectionalLight(0xfff0d4, 2.2);
+// Cool key light + dim sky fill, soft shadows (server-room ambience).
+const sun = new DirectionalLight(0xdde6ff, 2.2);
 sun.position.set(34, 52, 18);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -38,7 +38,7 @@ sun.shadow.camera.far = 160;
 sun.shadow.bias = -0.0006;
 scene.add(sun);
 
-const sky = new HemisphereLight(0xcfe6ff, 0x4f7c3a, 0.75);
+const sky = new HemisphereLight(0x35486b, 0x14181f, 0.75);
 scene.add(sky);
 
 // --- world ----------------------------------------------------------------
