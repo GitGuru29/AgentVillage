@@ -20,19 +20,78 @@
       #app canvas {
         display: block;
       }
-      .hud-chip {
+
+      /* ---- top HUD bar ------------------------------------------------- */
+      #topbar {
         position: fixed;
         top: 12px;
-        left: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+        display: flex;
+        gap: 10px;
+        user-select: none;
+        pointer-events: none;
+      }
+      .stat {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 12px;
+        background: rgba(12, 16, 28, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(6px);
+        color: #eef3ff;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        box-shadow: 0 0 8px currentColor;
+      }
+      .stat .label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        opacity: 0.55;
+      }
+      .swatch.gold {
+        background: #ffd23f;
+        color: #ffd23f;
+      }
+      .swatch.elixir {
+        background: #c86dd7;
+        color: #c86dd7;
+      }
+      .swatch.trophy {
+        background: #ff9f43;
+        color: #ff9f43;
+      }
+      .swatch.builder {
+        background: #5aa9ff;
+        color: #5aa9ff;
+      }
+
+      /* ---- connection chip --------------------------------------------- */
+      .hud-chip {
+        position: fixed;
+        bottom: 14px;
+        left: 14px;
         z-index: 10;
         display: flex;
         gap: 8px;
         align-items: center;
-        padding: 8px 12px;
+        padding: 7px 12px;
         border-radius: 10px;
         background: rgba(12, 16, 28, 0.78);
         color: #e8eefc;
-        font-size: 13px;
+        font-size: 12px;
         letter-spacing: 0.02em;
         backdrop-filter: blur(6px);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -56,11 +115,36 @@
   </head>
   <body>
     <div id="app"></div>
+
+    <div id="topbar">
+      <div class="stat">
+        <span class="swatch gold"></span>
+        <span class="label">GOLD</span>
+        <span id="stat-gold">0</span>
+      </div>
+      <div class="stat">
+        <span class="swatch elixir"></span>
+        <span class="label">ELIXIR</span>
+        <span id="stat-elixir">$0.00</span>
+      </div>
+      <div class="stat">
+        <span class="swatch trophy"></span>
+        <span class="label">TROPHIES</span>
+        <span id="stat-trophies">0</span>
+      </div>
+      <div class="stat">
+        <span class="swatch builder"></span>
+        <span class="label">BUILDERS</span>
+        <span id="stat-builders">0 / 0</span>
+      </div>
+    </div>
+
     <div class="hud-chip">
       <span class="dot" id="conn-dot"></span>
       <span>Agent Village</span>
       <span class="last" id="last-event">no events yet</span>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

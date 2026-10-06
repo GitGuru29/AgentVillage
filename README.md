@@ -4,10 +4,10 @@ An isometric 3D base — Clash of Clans style — that visualizes your AI agents
 working in real time. Every building, animation and sound maps to a real agent
 event. It's an observability tool disguised as a game.
 
-> **Status: structure milestone.** The ingest pipeline (WebSocket + HTTP + log
-> tailers), the mock event streamer and the isometric scene shell are in.
-> Buildings, animated builders, HUD, replay and day/night land in the next
-> phases.
+> **Status: Phase 2 — the village is alive.** Five buildings, animated robot
+> builders with A* pathfinding, name tags and the top-bar HUD are in. Every
+> agent event now drives a builder across the map. Remaining: more buildings,
+> richer agent states, HUD depth and polish.
 
 ## Quick start
 
@@ -17,15 +17,34 @@ npm run dev        # starts ingest server (:8787) + client (:5173)
 npm run mock       # in another terminal: streams a scripted agent scenario
 ```
 
-Open http://localhost:5173 — the top-left chip turns green when the WebSocket
-connects, and shows the latest event as the mock scenario plays.
+Open http://localhost:5173 — the chip in the bottom-left turns green when the
+WebSocket connects, and shows the latest event as the mock scenario plays.
 
 ```bash
 npm run mock -- --chaos    # random events forever
 npm run mock -- --once     # one scripted pass, then exit
 npm run typecheck          # tsc --noEmit
-npm run test               # vitest (no tests yet)
+npm run test               # vitest (A* grid + village event routing)
 ```
+
+## What you see in-world
+
+| Building | Events | Animation |
+| --- | --- | --- |
+| **Town Hall** (center) | `plan`, `done` | roof pulse; every `done` = trophy |
+| **Library** (NW) | `read` | a book flies out to the pile |
+| **Forge** (NE) | `write` | glowing brick launched; stacks grow per agent |
+| **Barracks** (SW) | `tool_call` | tool units march out of the door |
+| **Archery Range** (SE) | `test` | flag flips green/red; crater on failure |
+
+A robot builder per agent (max 12) spawns at the idle camp, pathfinds around
+buildings with A* (string-pulled, 96×96 grid) to the target's door, hammers
+there for the event's duration, then wanders the camp until the next event.
+Builders separate so they never clip through each other, and each wears a
+floating name tag in its own color.
+
+**Top bar:** GOLD ← tokens, ELIXIR ← $ cost, TROPHIES ← completed tasks,
+BUILDERS ← busy/alive, plus the latest event ticker and a connection chip.
 
 ## Sending your own events
 
@@ -108,20 +127,27 @@ server/            ingest server (node:http + ws, port 8787)
 scripts/
   mock-events.ts   mock agent streamer (scripted / --chaos / --file)
 src/
-  main.ts          scene boot, lights, ground, WS glue
+  main.ts          scene boot, lights, WS glue, dev debug hooks
   config.ts        WS url, iso camera angles, world bounds
   core/isoCamera.ts  orthographic iso camera (pan + zoom, no rotate)
   net/wsClient.ts  reconnecting WebSocket client
-  world/ ui/ audio/  reserved: buildings, builders, HUD, SFX
-tests/             vitest suites
+  ui/hud.ts        top bar (gold/elixir/trophies/builders + ticker)
+  world/
+    grid.ts        96×96 A* with string-pull smoothing + LOS helpers
+    layout.ts      building specs, palette, plaza, idle camp
+    terrain.ts     instanced grass/path/decor + footprint blocking
+    buildings.ts   the five buildings + per-agent effects
+    builder.ts     robot builder (walk/hammer/idle, separation, tags)
+    village.ts     event → building routing, counters, builder pool
+tests/             vitest: A* guarantees + headless village scenarios
 ```
 
 ## Roadmap
 
-1. ~~Structure + ingest + scene shell~~ (this commit)
-2. Five buildings (Town Hall, Library, Forge, Barracks, Archery Range)
-3. Animated builders with A* pathfinding + name tags
+1. ~~Structure + ingest + scene shell~~
+2. ~~Five buildings (Town Hall, Library, Forge, Barracks, Archery Range)~~
+3. ~~Animated builders with A* pathfinding + name tags + top-bar HUD~~
 4. Remaining buildings: Gold Mine, Elixir, Walls, Clock Tower, Trophy Hall, Mystery Hut
 5. Agent states: idle/thinking/working/approval/stuck/error/done/crashed
-6. HUD: top bar, agent side panel, toasts, minimap, replay scrubber
+6. HUD depth: agent side panel, toasts, minimap, replay scrubber
 7. Polish: day/night cycle, tilt-shift DOF, procedural SFX, 50+ agent instancing

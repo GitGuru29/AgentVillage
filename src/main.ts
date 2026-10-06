@@ -1,15 +1,15 @@
 import {
+  Clock,
   Color,
   DirectionalLight,
   HemisphereLight,
-  Mesh,
-  MeshStandardMaterial,
-  PlaneGeometry,
   Scene,
 } from "three";
 import { WS_URL } from "./config";
 import { IsoCamera, createRenderer } from "./core/isoCamera";
 import { connectVillage } from "./net/wsClient";
+import { Hud } from "./ui/hud";
+import { Village } from "./world/village";
 
 const container = document.getElementById("app");
 if (!container) throw new Error("#app container missing");
@@ -24,24 +24,15 @@ iso.setSize(container.clientWidth, container.clientHeight);
 const scene = new Scene();
 scene.background = new Color(0x9fd4f2);
 
-// Grass ground (tiles come with the terrain pass).
-const ground = new Mesh(
-  new PlaneGeometry(220, 220),
-  new MeshStandardMaterial({ color: 0x6cb84a, roughness: 1, metalness: 0 }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
 // Warm key light + sky fill, soft shadows.
 const sun = new DirectionalLight(0xfff0d4, 2.2);
 sun.position.set(34, 52, 18);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -60;
-sun.shadow.camera.right = 60;
-sun.shadow.camera.top = 60;
-sun.shadow.camera.bottom = -60;
+sun.shadow.camera.left = -45;
+sun.shadow.camera.right = 45;
+sun.shadow.camera.top = 45;
+sun.shadow.camera.bottom = -45;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 160;
 sun.shadow.bias = -0.0006;
@@ -50,7 +41,17 @@ scene.add(sun);
 const sky = new HemisphereLight(0xcfe6ff, 0x4f7c3a, 0.75);
 scene.add(sky);
 
-// --- HUD glue --------------------------------------------------------------
+// --- world ----------------------------------------------------------------
+const village = new Village(scene);
+const hud = new Hud();
+village.onCounters = (c) => hud.update(c);
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__village = village;
+  (window as unknown as Record<string, unknown>).__renderer = renderer;
+  (window as unknown as Record<string, unknown>).__iso = iso;
+}
+
+// --- events ----------------------------------------------------------------
 const connDot = document.getElementById("conn-dot");
 const lastEvent = document.getElementById("last-event");
 
@@ -61,11 +62,14 @@ const client = connectVillage(WS_URL, {
     if (lastEvent) {
       lastEvent.textContent = `${e.name ?? e.agent_id ?? "?"} → ${e.type ?? "?"}`;
     }
+    village.handleEvent(event);
   },
 });
 window.addEventListener("beforeunload", () => client.close());
 
 // --- loop ------------------------------------------------------------------
+const clock = new Clock();
+
 window.addEventListener("resize", () => {
   const { clientWidth: w, clientHeight: h } = container;
   renderer.setSize(w, h);
@@ -73,6 +77,8 @@ window.addEventListener("resize", () => {
 });
 
 function frame(): void {
+  const dt = Math.min(clock.getDelta(), 0.1);
+  village.update(dt);
   renderer.render(scene, iso.camera);
   requestAnimationFrame(frame);
 }
