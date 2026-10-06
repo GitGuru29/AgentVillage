@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Scene } from "three";
+import { BUILDINGS, insideWall, pathSegments } from "../src/world/layout";
 import { buildingForType, testPassed, Village, type Counters } from "../src/world/village";
+
+function pathFootprints() {
+  return BUILDINGS.map((b) => ({
+    x0: b.x - b.w / 2,
+    z0: b.z - b.d / 2,
+    x1: b.x + b.w / 2,
+    z1: b.z + b.d / 2,
+  }));
+}
 
 describe("event → building mapping", () => {
   it("routes every known type to its building", () => {
@@ -12,8 +22,11 @@ describe("event → building mapping", () => {
     expect(buildingForType("test")).toBe("archery");
   });
 
-  it("sends unknown types nowhere (Mystery Hut comes later)", () => {
-    expect(buildingForType("mystery_ritual")).toBeNull();
+  it("routes odd types to the Mystery Hut, passive ones nowhere", () => {
+    expect(buildingForType("mystery_ritual")).toBe("mystery");
+    expect(buildingForType("error")).toBe("mystery");
+    expect(buildingForType("approval")).toBe("mystery");
+    expect(buildingForType("token_usage")).toBeNull(); // gold mine reacts passively
     expect(buildingForType("")).toBeNull();
   });
 });
@@ -64,7 +77,7 @@ describe("Village (headless)", () => {
     expect(village.counters.gold).toBe(3500);
     expect(village.counters.elixir).toBeCloseTo(0.042, 5);
     expect(village.counters.trophies).toBe(1);
-    expect(village.counters.total).toBe(3); // ghost has no building → no builder
+    expect(village.counters.total).toBe(4); // ghost → Mystery Hut
     expect(snapshots.length).toBeGreaterThan(0);
   });
 
@@ -82,5 +95,62 @@ describe("Village (headless)", () => {
     village.handleEvent({ agent_id: "solo", type: "write", file: "a.ts" });
     for (let i = 0; i < 1800; i++) village.update(1 / 60); // 30s
     expect(village.counters.active).toBe(0); // task done → idle again
+  });
+
+  it("unknown events send a builder to the Mystery Hut", () => {
+    const village = new Village(new Scene());
+    village.handleEvent({ agent_id: "weird", type: "sacrifice", detail: "???" });
+    expect(village.counters.total).toBe(1);
+    for (let i = 0; i < 1800; i++) village.update(1 / 60);
+    expect(village.counters.active).toBe(0);
+  });
+});
+
+describe("Phase 3 world", () => {
+  it("every building is constructed with its hooks", () => {
+    const village = new Village(new Scene());
+    const { buildings } = village;
+    expect(buildings.goldMine.mineGold).toBeTypeOf("function");
+    expect(buildings.elixir.collect).toBeTypeOf("function");
+    expect(buildings.trophyHall.addTrophy).toBeTypeOf("function");
+    expect(buildings.mystery.pulse).toBeTypeOf("function");
+    expect(buildings.clockTower.group.name).toBe("clockTower");
+    expect(Object.keys(buildings)).toHaveLength(10);
+  });
+
+  it("walls seal the perimeter but the village stays walkable", () => {
+    const { grid } = new Village(new Scene());
+    expect(grid.isBlockedWorld(0, -20)).toBe(true); // north wall
+    expect(grid.isBlockedWorld(24, 0)).toBe(true); // east wall
+    expect(grid.isBlockedWorld(-24, 0)).toBe(true); // west wall
+    expect(grid.isBlockedWorld(0, 20)).toBe(true); // south wall
+    expect(grid.isBlockedWorld(21, -17)).toBe(true); // NE chamfer
+    expect(grid.isBlockedWorld(0, 7.5)).toBe(false); // plaza
+    expect(grid.isBlockedWorld(0, 11)).toBe(false); // idle camp
+    expect(grid.isBlockedWorld(-9.5, -15.5)).toBe(true); // gold mine footprint
+    expect(grid.isBlockedWorld(9.5, -15.5)).toBe(true); // elixir footprint
+    expect(grid.isBlockedWorld(-20.5, 2)).toBe(true); // mystery footprint
+    expect(grid.isBlockedWorld(20.5, 2)).toBe(true); // clock footprint
+  });
+
+  it("every dirt path stays inside the walls and off other buildings", () => {
+    const footprints = pathFootprints();
+    for (const [[ax, az], [bx, bz]] of pathSegments()) {
+      const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.4);
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const x = ax + (bx - ax) * t;
+        const z = az + (bz - az) * t;
+        const where = `(${ax},${az})→(${bx},${bz}) at (${x.toFixed(1)},${z.toFixed(1)})`;
+        expect(insideWall(x, z, -0.7), `path leaks past the wall: ${where}`).toBe(true);
+        const nearOwnDoor = Math.hypot(x - ax, z - az) <= 4;
+        if (nearOwnDoor) continue;
+        for (const f of footprints) {
+          const inside =
+            x >= f.x0 && x <= f.x1 && z >= f.z0 && z <= f.z1;
+          expect(inside, `footprint crossed: ${where}`).toBe(false);
+        }
+      }
+    }
   });
 });

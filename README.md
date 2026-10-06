@@ -4,10 +4,10 @@ An isometric 3D base — Clash of Clans style — that visualizes your AI agents
 working in real time. Every building, animation and sound maps to a real agent
 event. It's an observability tool disguised as a game.
 
-> **Status: Phase 2 — the village is alive.** Five buildings, animated robot
-> builders with A* pathfinding, name tags and the top-bar HUD are in. Every
-> agent event now drives a builder across the map. Remaining: more buildings,
-> richer agent states, HUD depth and polish.
+> **Status: Phase 3 — the village is built.** Ten buildings behind a fortified
+> wall: animated robot builders with A* pathfinding, name tags, top-bar HUD and
+> event-driven FX for every agent event type. Remaining: richer agent states,
+> HUD depth and polish.
 
 ## Quick start
 
@@ -36,6 +36,15 @@ npm run test               # vitest (A* grid + village event routing)
 | **Forge** (NE) | `write` | glowing brick launched; stacks grow per agent |
 | **Barracks** (SW) | `tool_call` | tool units march out of the door |
 | **Archery Range** (SE) | `test` | flag flips green/red; crater on failure |
+| **Mystery Hut** (W) | `error`, `approval`, unknown types | shudder + fog pulse; runes orbit |
+| **Gold Mine** (NW) | passive (`token_usage`) | cave glow; coins accumulate per token batch |
+| **Elixir Collector** (NE) | passive (`cost`) | tank liquid level + bubbles |
+| **Trophy Hall** (N) | passive (`done`) | trophies fly onto the shelf |
+| **Clock Tower** (E) | ambient | gears grind; hands advance with session time |
+
+The base is ringed by **stone walls with corner towers** — the nav grid seals
+at the wall line, so builders only move inside. Dirt paths elbow around the
+Town Hall to each gate.
 
 A robot builder per agent (max 12) spawns at the idle camp, pathfinds around
 buildings with A* (string-pulled, 96×96 grid) to the target's door, hammers
@@ -82,8 +91,9 @@ You can also send the same JSON over the WebSocket itself.
 }
 ```
 
-Unknown `type` values are accepted and routed to the **Mystery Hut** in-world.
-`timestamp` and `id` are filled in server-side when missing.
+Unknown `type` values — and `error` / `approval` — are routed to the
+**Mystery Hut**; `token_usage` is absorbed passively by the resource
+buildings. `timestamp` and `id` are filled in server-side when missing.
 
 ## Ingesting real agent logs
 
@@ -134,9 +144,9 @@ src/
   ui/hud.ts        top bar (gold/elixir/trophies/builders + ticker)
   world/
     grid.ts        96×96 A* with string-pull smoothing + LOS helpers
-    layout.ts      building specs, palette, plaza, idle camp
+    layout.ts      building specs, routes, wall ring, palette, camps
     terrain.ts     instanced grass/path/decor + footprint blocking
-    buildings.ts   the five buildings + per-agent effects
+    buildings.ts   ten buildings, walls + per-agent effects
     builder.ts     robot builder (walk/hammer/idle, separation, tags)
     village.ts     event → building routing, counters, builder pool
 tests/             vitest: A* guarantees + headless village scenarios
@@ -147,7 +157,7 @@ tests/             vitest: A* guarantees + headless village scenarios
 1. ~~Structure + ingest + scene shell~~
 2. ~~Five buildings (Town Hall, Library, Forge, Barracks, Archery Range)~~
 3. ~~Animated builders with A* pathfinding + name tags + top-bar HUD~~
-4. Remaining buildings: Gold Mine, Elixir, Walls, Clock Tower, Trophy Hall, Mystery Hut
+4. ~~Remaining buildings: Gold Mine, Elixir, Walls, Clock Tower, Trophy Hall, Mystery Hut~~
 5. Agent states: idle/thinking/working/approval/stuck/error/done/crashed
 6. HUD depth: agent side panel, toasts, minimap, replay scrubber
 7. Polish: day/night cycle, tilt-shift DOF, procedural SFX, 50+ agent instancing

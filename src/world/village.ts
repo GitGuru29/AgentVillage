@@ -1,11 +1,11 @@
 import { Group, type Object3D } from "three";
-import { createBuilding, type BuildingInstance } from "./buildings";
+import { createBuilding, createWalls, type BuildingInstance } from "./buildings";
 import { agentColor, Builder } from "./builder";
 import { NavGrid } from "./grid";
 import { BUILDINGS, IDLE_CAMP, type BuildingKey } from "./layout";
 import { createTerrain } from "./terrain";
 
-/** Which building an event type belongs to (unknown → Mystery Hut later). */
+/** Which building an event type belongs to (unknown → Mystery Hut). */
 export function buildingForType(type: string): BuildingKey | null {
   switch (type) {
     case "plan":
@@ -19,8 +19,14 @@ export function buildingForType(type: string): BuildingKey | null {
       return "barracks";
     case "test":
       return "archery";
-    default:
+    case "error":
+    case "approval":
+      return "mystery";
+    case "token_usage":
+      // passive: the Gold Mine reacts without sending a builder
       return null;
+    default:
+      return type.length > 0 ? "mystery" : null;
   }
 }
 
@@ -60,6 +66,7 @@ export class Village {
   constructor(parent: Object3D) {
     this.grid = new NavGrid(96);
     this.root.add(createTerrain(this.grid));
+    this.root.add(createWalls(this.grid));
     for (const spec of BUILDINGS) {
       const b = createBuilding(spec);
       this.buildings[b.key] = b;
@@ -107,6 +114,7 @@ export class Village {
 
     // --- building effects ---------------------------------------------------
     const key = buildingForType(type);
+    const tokens = type === "token_usage" ? num(e.tokens_in) + num(e.tokens_out) : 0;
     switch (type) {
       case "plan":
         this.buildings.townHall.pulse?.(2.6);
@@ -129,6 +137,12 @@ export class Village {
       default:
         break;
     }
+
+    // passive FX: the economy row reacts without sending a builder
+    if (tokens > 0) this.buildings.goldMine.mineGold?.(tokens);
+    if (cost > 0) this.buildings.elixir.collect?.(cost);
+    if (type === "done") this.buildings.trophyHall.addTrophy?.();
+    if (key === "mystery") this.buildings.mystery.pulse?.();
 
     // --- route the builder ---------------------------------------------------
     if (key) {

@@ -11,7 +11,7 @@ import {
   Object3D,
 } from "three";
 import type { NavGrid } from "./grid";
-import { BUILDINGS, PALETTE, pathSegments, PLAZA } from "./layout";
+import { BUILDINGS, insideWall, PALETTE, pathSegments, PLAZA } from "./layout";
 
 const TILE_EXTENT = 32; // tiles span ±TILE_EXTENT
 const TILE_SIZE = TILE_EXTENT * 2;
@@ -75,14 +75,19 @@ export function createTerrain(grid: NavGrid): Group {
   if (tiles.instanceColor) tiles.instanceColor.needsUpdate = true;
   root.add(tiles);
 
-  // --- decor: instanced trees + rocks around the village rim -------------
+  // --- decor: instanced trees + rocks outside the wall ring ---------------
   const spots: Array<[number, number]> = [];
-  for (let n = 0; n < 34; n++) {
-    const a = (n / 34) * Math.PI * 2 + Math.random() * 0.25;
-    const r = 25 + Math.random() * 6;
+  for (let n = 0; n < 44; n++) {
+    const a = (n / 44) * Math.PI * 2 + Math.random() * 0.25;
+    const r = 26 + Math.random() * 4;
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r * 0.85;
-    if (Math.abs(x) < TILE_EXTENT - 1 && Math.abs(z) < TILE_EXTENT - 1) spots.push([x, z]);
+    if (
+      Math.abs(x) < TILE_EXTENT - 1 &&
+      Math.abs(z) < TILE_EXTENT - 1 &&
+      !insideWall(x, z, 1.6)
+    )
+      spots.push([x, z]);
   }
 
   const trunks = new InstancedMesh(
@@ -118,18 +123,25 @@ export function createTerrain(grid: NavGrid): Group {
   const rocks = new InstancedMesh(
     new BoxGeometry(1, 0.7, 1),
     new MeshStandardMaterial({ color: 0x8d93a1, roughness: 1 }),
-    14,
+    16,
   );
   rocks.castShadow = true;
-  for (let n = 0; n < 14; n++) {
+  let rockPlaced = 0;
+  for (let n = 0; n < 16 && rockPlaced < 16; n++) {
     const a = Math.random() * Math.PI * 2;
-    const r = 20 + Math.random() * 9;
-    dummy.position.set(Math.cos(a) * r, 0.18, Math.sin(a) * r * 0.9);
+    const r = 25 + Math.random() * 5;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r * 0.9;
+    if (insideWall(x, z, 1.2)) continue;
+    dummy.position.set(x, 0.18, z);
     dummy.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
     dummy.scale.set(0.5 + Math.random() * 0.9, 0.4 + Math.random() * 0.5, 0.5 + Math.random() * 0.9);
     dummy.updateMatrix();
-    rocks.setMatrixAt(n, dummy.matrix);
+    rocks.setMatrixAt(rockPlaced, dummy.matrix);
+    rockPlaced++;
   }
+  rocks.count = rockPlaced;
+  rocks.instanceMatrix.needsUpdate = true;
   root.add(rocks);
 
   // building footprints are unwalkable
