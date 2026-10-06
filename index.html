@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Village</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #1b2436;
+        font-family: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #app canvas {
+        display: block;
+      }
+      .hud-chip {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 10;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: rgba(12, 16, 28, 0.78);
+        color: #e8eefc;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        user-select: none;
+      }
+      .hud-chip .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #e05252;
+        box-shadow: 0 0 6px currentColor;
+      }
+      .hud-chip .dot.on {
+        background: #4fd67a;
+      }
+      .hud-chip .last {
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div class="hud-chip">
+      <span class="dot" id="conn-dot"></span>
+      <span>Agent Village</span>
+      <span class="last" id="last-event">no events yet</span>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
