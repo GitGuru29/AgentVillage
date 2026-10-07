@@ -51,7 +51,7 @@ export const STATE_LIGHT: Record<AgentState, number> = {
   crashed: 0x1c2233,
 };
 
-const STATE_CSS: Record<AgentState, string> = {
+export const STATE_CSS: Record<AgentState, string> = {
   idle: "#7ef0ff",
   thinking: "#9d8cff",
   working: "#4fe3c1",
@@ -229,8 +229,35 @@ export class Builder {
     this.queue.push(task);
   }
 
+  get queueLength(): number {
+    return this.queue.length;
+  }
+
+  /** Drop queued tasks (the in-flight one keeps going). */
+  clearQueue(): void {
+    this.queue.length = 0;
+  }
+
+  /** Replay rebuild: no tasks, idle pose, position kept. */
+  resetForReplay(): void {
+    this.queue.length = 0;
+    this.current = null;
+    this.path = [];
+    this.pathIdx = 0;
+    this.traveling = false;
+    this.stateT = 0;
+    this.setState("idle");
+    this.torsoPivot.rotation.set(0, 0, 0);
+    this.group.position.y = 0;
+  }
+
   hasTasks(): boolean {
     return this.queue.length > 0 || this.current !== null;
+  }
+
+  /** Key of the building the builder is heading to / working at. */
+  get currentBuilding(): string | null {
+    return this.current?.building.key ?? null;
   }
 
   /** Error storm: drop everything and slump until the next event revives us. */

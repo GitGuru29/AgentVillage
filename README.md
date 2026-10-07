@@ -4,13 +4,13 @@ An isometric 3D base — Clash of Clans style — that visualizes your AI agents
 working in real time. Every building, animation and sound maps to a real agent
 event. It's an observability tool disguised as a game.
 
-> **Status: Phase 5 — agent states.** Every robot now runs an 8-state
-> lifecycle (`idle → thinking → working → done`, plus `approval`, `error`,
-> `stuck` and `crashed`) driven by events: a state beacon above its antenna
-> glows in the state's color, and the name tag shows the live state under the
-> name. Two `error` events within 8 seconds crash the robot (it slumps, drops
-> its queue) until the next event revives it; unreachable doors enter a
-> retrying `stuck` state. Remaining: HUD depth and polish.
+> **Status: Phase 6 — HUD depth.** The full observability layer is in: an
+> **agent side panel** (roster + per-agent detail, click a row or a robot in
+> 3D), **event toasts** (errors, approvals, ships, test failures, crashes), a
+> **live minimap** (walls, buildings, agents, click to pan), and a **replay
+> scrubber** — every event is recorded (last 5,000), so you can pause, drag the
+> timeline, watch the counters rewind, play back at ×1/×4/×16, then jump back
+> to LIVE. Remaining: polish.
 
 ## Quick start
 
@@ -27,7 +27,7 @@ WebSocket connects, and shows the latest event as the mock scenario plays.
 npm run mock -- --chaos    # random events forever
 npm run mock -- --once     # one scripted pass, then exit
 npm run typecheck          # tsc --noEmit
-npm run test               # vitest (A* grid + village routing + agent states)
+npm run test               # vitest (A* grid + village routing + agent states + replay)
 ```
 
 ## What you see in-world
@@ -78,6 +78,19 @@ name, so you can read the whole floor at a glance.
 **Top bar:** TOKENS ← `tokens_in`+`tokens_out`, COST ← $ cost, SHIPPED ←
 completed tasks, AGENTS ← busy/alive, plus the latest event ticker
 (`agent → event`) and a connection chip.
+
+### HUD & replay
+
+| Panel | What it does |
+| --- | --- |
+| **Agent panel** (right) | Live roster with state colors; click a row or a robot in 3D to select — detail card shows state, building, queue, session stats (events/tokens/cost/shipped) and the last few events. A ring marks the selected robot. |
+| **Toasts** (bottom-left) | Sliding notices for `error`, `approval`/`security_check`, `ship`, failed `test`s and crashes (two errors in 8s), each in the event's color; max 4, auto-dismiss. |
+| **Minimap** (top-left) | Top-down map of walls, buildings (in their accent colors) and agent dots (state colors, ring on selection). Click a dot to select, click anywhere to pan the camera. |
+| **Scrubber** (bottom) | Timeline of every event tick (colored by type). Pause freezes the world; drag to seek — counters, error storms and tasks rebuild at that point, builders keep their positions. Play resumes at ×1/×4/×16 until the playhead catches wall-clock, or hit **LIVE** to jump back. |
+
+The last 5,000 events are recorded in a tape (`ReplayEngine`); HUD counters
+follow the playhead, so a paused mid-session view shows that session's
+tokens/cost/shipped — not the totals.
 
 ## Sending your own events
 
@@ -165,19 +178,25 @@ server/            ingest server (node:http + ws, port 8787)
 scripts/
   mock-events.ts   mock agent streamer (scripted / --chaos / --file)
 src/
-  main.ts          scene boot, lights, WS glue, dev debug hooks
+  main.ts          scene boot, lights, WS glue, selection, dev hooks
   config.ts        WS url, iso camera angles, world bounds
   core/isoCamera.ts  orthographic iso camera (pan + zoom, no rotate)
   net/wsClient.ts  reconnecting WebSocket client
-  ui/hud.ts        top bar (tokens/cost/shipped/agents + ticker)
+  ui/
+    hud.ts         top bar (tokens/cost/shipped/agents + ticker)
+    replay.ts      ReplayEngine: event tape, seek/playback/go-live, stats, toasts
+    panel.ts       agent roster + selected-agent detail
+    minimap.ts     top-down map (click to pan / select)
+    scrubber.ts    timeline: scrub, play/pause, speed, LIVE
+    toasts.ts      event notification stack
   world/
     grid.ts        96×96 A* with string-pull smoothing + LOS helpers
     layout.ts      building specs, routes, wall ring, palette, camps
     terrain.ts     dark server-room floor, lit walkways, decor + footprint blocking
     buildings.ts   thirteen buildings, firewall + per-agent effects
     builder.ts     robot builder (8-state lifecycle, beacon, tags, separation)
-    village.ts     event → building routing, counters, builder pool
-tests/             vitest: A* guarantees + headless village scenarios
+    village.ts     event → building routing, counters, builder pool, replay hooks
+tests/             vitest: A* guarantees, headless village scenarios, replay engine
 ```
 
 ## Roadmap
@@ -188,5 +207,5 @@ tests/             vitest: A* guarantees + headless village scenarios
 4. ~~Remaining buildings: Gold Mine, Elixir, Walls, Clock Tower, Trophy Hall, Mystery Hut~~
 5. ~~IT re-theme: thirteen data-center buildings, new event types (`security_check` / `debug` / `ship`), tokens/cost/shipped HUD~~
 6. ~~Agent states: idle/thinking/working/approval/stuck/error/done/crashed~~
-7. HUD depth: agent side panel, toasts, minimap, replay scrubber
+7. ~~HUD depth: agent side panel, toasts, minimap, replay scrubber~~
 8. Polish: day/night cycle, tilt-shift DOF, procedural SFX, 50+ agent instancing

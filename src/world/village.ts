@@ -55,6 +55,15 @@ export interface Counters {
   total: number;
 }
 
+export interface HandleEventOpts {
+  /** Visual effects (building FX). Off during replay reconstruction. Default true. */
+  fx?: boolean;
+  /** Route a builder task for the event. Default true. */
+  enqueue?: boolean;
+  /** Clock (seconds) for the error-storm window. Default: village elapsed. */
+  now?: number;
+}
+
 const MAX_BUILDERS = 12;
 /** Two `error` events for one agent within this window = error storm → crashed. */
 const ERROR_WINDOW_SECONDS = 8;
@@ -65,6 +74,13 @@ export class Village {
   readonly buildings = {} as Record<BuildingKey, BuildingInstance>;
   readonly counters: Counters = { tokens: 0, cost: 0, shipped: 0, active: 0, total: 0 };
   onCounters?: (c: Counters) => void;
+  /** Fired when an error storm crashes an agent (FX pass only). */
+  onCrash?: (agentId: string, name: string) => void;
+  /**
+   * Replay pacing: enqueued events replace the queue once a builder is
+   * already holding 2+ tasks, so time-lapsed playback stays near "now".
+   */
+  replayPacing = false;
 
   private builderMap = new Map<string, Builder>();
   private lastError = new Map<string, number>();
@@ -90,7 +106,9 @@ export class Village {
   }
 
   /** Feed every WebSocket / HTTP event straight in. Ignores malformed input. */
-  handleEvent(raw: unknown): void {
+  handleEvent(raw: unknown, opts: HandleEventOpts = {}): void {
+    const fx = opts.fx !== false;
+    const enqueue = opts.enqueue !== false;
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return;
     const e = raw as Record<string, unknown>;
     const agentId = typeof e.agent_id === "string" ? e.agent_id : null;
@@ -131,64 +149,87 @@ export class Village {
     // its queue is dropped and the robot slumps until the next event.
     let crashed = false;
     if (type === "error") {
+      const clock = opts.now ?? this.elapsed;
       const prev = this.lastError.get(agentId);
-      this.lastError.set(agentId, this.elapsed);
-      if (prev !== undefined && this.elapsed - prev <= ERROR_WINDOW_SECONDS) {
+      this.lastError.set(agentId, clock);
+      if (prev !== undefined && clock - prev <= ERROR_WINDOW_SECONDS) {
         crashed = true;
-        this.builderMap.get(agentId)?.crash();
+        const victim = this.builderMap.get(agentId);
+        victim?.crash();
+        if (victim && fx) this.onCrash?.(agentId, name);
       }
     }
 
     const tokens = type === "token_usage" ? num(e.tokens_in) + num(e.tokens_out) : 0;
-    switch (type) {
-      case "plan":
-        this.buildings.command.pulse?.(2.6);
-        break;
-      case "done":
-        this.buildings.command.pulse?.(1.6);
-        break;
-      case "read":
-        this.buildings.docs.spawnDoc?.();
-        break;
-      case "write":
-        this.buildings.devfloor.pushCode?.(agentId);
-        break;
-      case "tool_call":
-        this.buildings.ops.runTool?.(tool ?? "shell", duration ?? 1600);
-        break;
-      case "test":
-        this.buildings.qa.testResult?.(testPassed(detail));
-        break;
-      case "approval":
-      case "security_check":
-        this.buildings.gate.scanBadge?.();
-        break;
-      case "debug":
-        this.buildings.debug.debugBreak?.();
-        break;
-      case "ship":
-        this.buildings.dock.launchCargo?.();
-        break;
-      default:
-        break;
-    }
+    if (fx) {
+      switch (type) {
+        case "plan":
+          this.buildings.command.pulse?.(2.6);
+          break;
+        case "done":
+          this.buildings.command.pulse?.(1.6);
+          break;
+        case "read":
+          this.buildings.docs.spawnDoc?.();
+          break;
+        case "write":
+          this.buildings.devfloor.pushCode?.(agentId);
+          break;
+        case "tool_call":
+          this.buildings.ops.runTool?.(tool ?? "shell", duration ?? 1600);
+          break;
+        case "test":
+          this.buildings.qa.testResult?.(testPassed(detail));
+          break;
+        case "approval":
+        case "security_check":
+          this.buildings.gate.scanBadge?.();
+          break;
+        case "debug":
+          this.buildings.debug.debugBreak?.();
+          break;
+        case "ship":
+          this.buildings.dock.launchCargo?.();
+          break;
+        default:
+          break;
+      }
 
-    // passive FX: the perimeter row reacts without sending a builder
-    if (tokens > 0) this.buildings.racks.rackLoad?.(tokens);
-    if (cost > 0) this.buildings.power.meterSpike?.(cost);
-    if (type === "done") this.buildings.release.logRelease?.();
-    if (key === "incident") this.buildings.incident.pulse?.();
+      // passive FX: the perimeter row reacts without sending a builder
+      if (tokens > 0) this.buildings.racks.rackLoad?.(tokens);
+      if (cost > 0) this.buildings.power.meterSpike?.(cost);
+      if (type === "done") this.buildings.release.logRelease?.();
+      if (key === "incident") this.buildings.incident.pulse?.();
+    }
 
     // --- route the builder ---------------------------------------------------
     if (key && !crashed) {
       const b = this.getOrCreate(agentId, name);
-      const workSeconds = duration
-        ? Math.max(1, Math.min(4, duration / 1000))
-        : 2.2;
-      b.enqueue({ building: this.buildings[key], workSeconds });
+      if (enqueue) {
+        if (this.replayPacing && b.queueLength >= 2) b.clearQueue();
+        const workSeconds = duration
+          ? Math.max(1, Math.min(4, duration / 1000))
+          : 2.2;
+        b.enqueue({ building: this.buildings[key], workSeconds });
+      }
     }
 
     if (this.dirty) this.emit();
+  }
+
+  /**
+   * Rewind for a replay rebuild: counters to zero, error streaks cleared,
+   * every builder drops tasks and returns to idle (position is kept).
+   */
+  beginReplay(): void {
+    this.counters.tokens = 0;
+    this.counters.cost = 0;
+    this.counters.shipped = 0;
+    this.counters.active = 0;
+    this.lastError.clear();
+    for (const b of this.builderMap.values()) b.resetForReplay();
+    this.dirty = true;
+    this.emit();
   }
 
   update(dt: number): void {

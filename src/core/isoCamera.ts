@@ -99,6 +99,13 @@ export class IsoCamera {
     this.update();
   }
 
+  /** Snap the view centre to a world point (minimap click, focus). */
+  panTo(x: number, z: number): void {
+    this.target.x = Math.max(-WORLD_HALF_SIZE, Math.min(WORLD_HALF_SIZE, x));
+    this.target.z = Math.max(-WORLD_HALF_SIZE, Math.min(WORLD_HALF_SIZE, z));
+    this.update();
+  }
+
   update(): void {
     const aspect = this.width / this.height;
     const h = FRUSTUM;
