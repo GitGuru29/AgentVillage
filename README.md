@@ -4,13 +4,13 @@ An isometric 3D base — Clash of Clans style — that visualizes your AI agents
 working in real time. Every building, animation and sound maps to a real agent
 event. It's an observability tool disguised as a game.
 
-> **Status: Phase 4 — the data-center re-theme.** The village is now an IT
-> operations floor: thirteen buildings behind a metal firewall — command
-> center, docs archive, dev floor, ops bench, QA lab, server racks, power
-> meter, release wall, incident room, NOC, security gate, debug bay and ship
-> dock — with animated robot builders (A* pathfinding, name tags), a
-> tokens/cost/shipped/agents HUD and event-driven FX for every event type.
-> Remaining: richer agent states, HUD depth and polish.
+> **Status: Phase 5 — agent states.** Every robot now runs an 8-state
+> lifecycle (`idle → thinking → working → done`, plus `approval`, `error`,
+> `stuck` and `crashed`) driven by events: a state beacon above its antenna
+> glows in the state's color, and the name tag shows the live state under the
+> name. Two `error` events within 8 seconds crash the robot (it slumps, drops
+> its queue) until the next event revives it; unreachable doors enter a
+> retrying `stuck` state. Remaining: HUD depth and polish.
 
 ## Quick start
 
@@ -27,7 +27,7 @@ WebSocket connects, and shows the latest event as the mock scenario plays.
 npm run mock -- --chaos    # random events forever
 npm run mock -- --once     # one scripted pass, then exit
 npm run typecheck          # tsc --noEmit
-npm run test               # vitest (A* grid + village event routing)
+npm run test               # vitest (A* grid + village routing + agent states)
 ```
 
 ## What you see in-world
@@ -58,6 +58,22 @@ buildings with A* (string-pulled, 96×96 grid) to the target's door, hammers
 there for the event's duration, then wanders the camp until the next event.
 Builders separate so they never clip through each other, and each wears a
 floating name tag in its own color.
+
+### Agent states
+
+| State | Trigger | Beacon |
+| --- | --- | --- |
+| `idle` | no tasks; wanders the camp | cyan, soft pulse |
+| `thinking` | task enqueued; pathing to the door | violet, fast pulse |
+| `working` | arrived at a building; hammering | teal |
+| `approval` | arrived at the Security Gate | amber |
+| `error` | arrived at the Incident Room | red strobe |
+| `stuck` | A* found no path; retries every 2.2s | orange blink |
+| `done` | task finished; brief cheer before idle | green flash |
+| `crashed` | two `error` events within 8s; queue dropped | dark; revived by the next event |
+
+The name tag shows the state in the beacon's color directly under the agent
+name, so you can read the whole floor at a glance.
 
 **Top bar:** TOKENS ← `tokens_in`+`tokens_out`, COST ← $ cost, SHIPPED ←
 completed tasks, AGENTS ← busy/alive, plus the latest event ticker
@@ -159,7 +175,7 @@ src/
     layout.ts      building specs, routes, wall ring, palette, camps
     terrain.ts     dark server-room floor, lit walkways, decor + footprint blocking
     buildings.ts   thirteen buildings, firewall + per-agent effects
-    builder.ts     robot builder (walk/hammer/idle, separation, tags)
+    builder.ts     robot builder (8-state lifecycle, beacon, tags, separation)
     village.ts     event → building routing, counters, builder pool
 tests/             vitest: A* guarantees + headless village scenarios
 ```
@@ -171,6 +187,6 @@ tests/             vitest: A* guarantees + headless village scenarios
 3. ~~Animated builders with A* pathfinding + name tags + top-bar HUD~~
 4. ~~Remaining buildings: Gold Mine, Elixir, Walls, Clock Tower, Trophy Hall, Mystery Hut~~
 5. ~~IT re-theme: thirteen data-center buildings, new event types (`security_check` / `debug` / `ship`), tokens/cost/shipped HUD~~
-6. Agent states: idle/thinking/working/approval/stuck/error/done/crashed
+6. ~~Agent states: idle/thinking/working/approval/stuck/error/done/crashed~~
 7. HUD depth: agent side panel, toasts, minimap, replay scrubber
 8. Polish: day/night cycle, tilt-shift DOF, procedural SFX, 50+ agent instancing

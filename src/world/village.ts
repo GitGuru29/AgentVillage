@@ -56,6 +56,8 @@ export interface Counters {
 }
 
 const MAX_BUILDERS = 12;
+/** Two `error` events for one agent within this window = error storm → crashed. */
+const ERROR_WINDOW_SECONDS = 8;
 
 export class Village {
   readonly grid: NavGrid;
@@ -64,7 +66,8 @@ export class Village {
   readonly counters: Counters = { tokens: 0, cost: 0, shipped: 0, active: 0, total: 0 };
   onCounters?: (c: Counters) => void;
 
-  private builders = new Map<string, Builder>();
+  private builderMap = new Map<string, Builder>();
+  private lastError = new Map<string, number>();
   private elapsed = 0;
   private lastActive = -1;
   private dirty = false;
@@ -79,6 +82,11 @@ export class Village {
       this.root.add(b.group);
     }
     parent.add(this.root);
+  }
+
+  /** All spawned builders (agent lifecycle states live on each Builder). */
+  get agents(): readonly Builder[] {
+    return [...this.builderMap.values()];
   }
 
   /** Feed every WebSocket / HTTP event straight in. Ignores malformed input. */
@@ -118,6 +126,19 @@ export class Village {
 
     // --- building effects ---------------------------------------------------
     const key = buildingForType(type);
+
+    // error storm: a second `error` within the window crashes the agent —
+    // its queue is dropped and the robot slumps until the next event.
+    let crashed = false;
+    if (type === "error") {
+      const prev = this.lastError.get(agentId);
+      this.lastError.set(agentId, this.elapsed);
+      if (prev !== undefined && this.elapsed - prev <= ERROR_WINDOW_SECONDS) {
+        crashed = true;
+        this.builderMap.get(agentId)?.crash();
+      }
+    }
+
     const tokens = type === "token_usage" ? num(e.tokens_in) + num(e.tokens_out) : 0;
     switch (type) {
       case "plan":
@@ -159,7 +180,7 @@ export class Village {
     if (key === "incident") this.buildings.incident.pulse?.();
 
     // --- route the builder ---------------------------------------------------
-    if (key) {
+    if (key && !crashed) {
       const b = this.getOrCreate(agentId, name);
       const workSeconds = duration
         ? Math.max(1, Math.min(4, duration / 1000))
@@ -172,7 +193,7 @@ export class Village {
 
   update(dt: number): void {
     this.elapsed += dt;
-    const list = [...this.builders.values()];
+    const list = [...this.builderMap.values()];
     for (const b of list) b.update(dt, this.elapsed, list, this.grid);
     for (const spec of BUILDINGS) this.buildings[spec.key].update(dt, this.elapsed);
 
@@ -186,20 +207,20 @@ export class Village {
   }
 
   private getOrCreate(agentId: string, name: string): Builder {
-    let b = this.builders.get(agentId);
-    if (b) return b;
-    if (this.builders.size >= MAX_BUILDERS) {
+    const existing = this.builderMap.get(agentId);
+    if (existing) return existing;
+    if (this.builderMap.size >= MAX_BUILDERS) {
       // Reuse the most idle builder rather than growing without bound.
-      const idle = [...this.builders.values()].find((x) => !x.hasTasks());
+      const idle = [...this.builderMap.values()].find((x) => !x.hasTasks());
       if (idle) return idle;
-      const first = this.builders.values().next().value;
+      const first = this.builderMap.values().next().value;
       if (first) return first;
       throw new Error("unreachable");
     }
-    b = new Builder(agentId, name, agentColor(agentId), IDLE_CAMP, this.grid);
-    this.builders.set(agentId, b);
+    const b = new Builder(agentId, name, agentColor(agentId), IDLE_CAMP, this.grid);
+    this.builderMap.set(agentId, b);
     this.root.add(b.group);
-    this.counters.total = this.builders.size;
+    this.counters.total = this.builderMap.size;
     this.dirty = true;
     return b;
   }

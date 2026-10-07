@@ -91,7 +91,11 @@ function script(): MockEvent[] {
   events.push(e({ agent_id: "brick", type: "tool_call", tool: "git", detail: "git diff --stat" }, t));
   t += 1100;
   events.push(e({ agent_id: "brick", type: "error", detail: "TypeError: cannot read 'length' of undefined" }, t));
-  t += 1500;
+  t += 1100;
+  // second error inside the 8s window → error storm: Brick crashes (slumps)
+  events.push(e({ agent_id: "brick", type: "error", detail: "Error: reducer died at replay/snapshot.ts:88" }, t));
+  t += 1600;
+  // the approval revives the crashed agent — it walks to the gate
   events.push(e({ agent_id: "brick", type: "approval", detail: "Allow npm install of new dep 'stats-lite'?" }, t));
   t += 2200;
   events.push(e({ agent_id: "brick", type: "tool_call", tool: "shell", detail: "npm install stats-lite" }, t));

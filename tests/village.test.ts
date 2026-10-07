@@ -181,3 +181,82 @@ describe("Phase 4 world", () => {
     }
   });
 });
+
+describe("Phase 5 agent states", () => {
+  const stateOf = (v: Village, id: string): string | null =>
+    v.agents.find((a) => a.agentId === id)?.state ?? null;
+
+  it("walks the full lifecycle: idle → thinking → working → done → idle", () => {
+    const v = new Village(new Scene());
+    v.handleEvent({ agent_id: "life", type: "write", file: "a.ts" });
+    const seen = new Set<string>();
+    for (let i = 0; i < 1200; i++) {
+      v.update(1 / 60);
+      seen.add(stateOf(v, "life")!);
+    }
+    expect(seen.has("thinking")).toBe(true);
+    expect(seen.has("working")).toBe(true);
+    expect(seen.has("done")).toBe(true);
+    expect(stateOf(v, "life")).toBe("idle");
+    expect(v.counters.active).toBe(0);
+  });
+
+  it("shows approval at the gate and error at the incident room", () => {
+    const v = new Village(new Scene());
+    v.handleEvent({ agent_id: "app", type: "security_check", detail: "audit" });
+    v.handleEvent({ agent_id: "err", type: "error", detail: "boom" });
+    const seenApp = new Set<string>();
+    const seenErr = new Set<string>();
+    for (let i = 0; i < 1500; i++) {
+      v.update(1 / 60);
+      seenApp.add(stateOf(v, "app")!);
+      seenErr.add(stateOf(v, "err")!);
+    }
+    expect(seenApp.has("approval")).toBe(true);
+    expect(seenErr.has("error")).toBe(true);
+    expect(seenErr.has("crashed")).toBe(false); // one error is not a crash
+    expect(stateOf(v, "app")).toBe("idle");
+    expect(stateOf(v, "err")).toBe("idle");
+  });
+
+  it("a second error within the window crashes the agent; the next event revives it", () => {
+    const v = new Village(new Scene());
+    v.handleEvent({ agent_id: "flaky", type: "error", detail: "boom 1" });
+    for (let i = 0; i < 60; i++) v.update(1 / 60); // 1s: inside the 8s window
+    v.handleEvent({ agent_id: "flaky", type: "error", detail: "boom 2" });
+    v.update(1 / 60);
+    expect(stateOf(v, "flaky")).toBe("crashed");
+    expect(v.counters.active).toBe(0); // queue dropped
+    expect(v.agents[0]!.group.getObjectByName("stateLight")).toBeTruthy();
+    for (let i = 0; i < 120; i++) v.update(1 / 60);
+    expect(stateOf(v, "flaky")).toBe("crashed"); // no events → stays down
+
+    v.handleEvent({ agent_id: "flaky", type: "plan", detail: "recover" });
+    v.update(1 / 60);
+    expect(stateOf(v, "flaky")).toBe("thinking");
+    for (let i = 0; i < 1200; i++) v.update(1 / 60);
+    expect(stateOf(v, "flaky")).toBe("idle");
+    expect(v.counters.active).toBe(0);
+  });
+
+  it("gets stuck when the door is unreachable and recovers once the path clears", () => {
+    const v = new Village(new Scene());
+    // full-width seal between the camp and the Debug Bay door (18.5, -9.5)
+    for (let cx = 0; cx < 96; cx++) {
+      v.grid.setBlockedCell(cx, 39);
+      v.grid.setBlockedCell(cx, 40);
+    }
+    v.handleEvent({ agent_id: "trapped", type: "debug", detail: "bp" });
+    for (let i = 0; i < 30; i++) v.update(1 / 60);
+    expect(stateOf(v, "trapped")).toBe("stuck");
+    expect(v.counters.active).toBe(1); // task still held for retries
+
+    for (let cx = 0; cx < 96; cx++) {
+      v.grid.setBlockedCell(cx, 39, 0);
+      v.grid.setBlockedCell(cx, 40, 0);
+    }
+    for (let i = 0; i < 1800; i++) v.update(1 / 60);
+    expect(stateOf(v, "trapped")).toBe("idle");
+    expect(v.counters.active).toBe(0);
+  });
+});

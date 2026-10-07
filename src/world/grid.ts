@@ -87,7 +87,8 @@ export class NavGrid {
   private blocked: Uint8Array;
   private g: Float64Array;
   private came: Int32Array;
-  private closed: Uint8Array;
+  /** Stamp of the search that closed each cell (0 = never). */
+  private closed: Int32Array;
   private stamp = 0;
   private stamps: Int32Array;
 
@@ -98,7 +99,7 @@ export class NavGrid {
     this.blocked = new Uint8Array(n);
     this.g = new Float64Array(n);
     this.came = new Int32Array(n);
-    this.closed = new Uint8Array(n);
+    this.closed = new Int32Array(n);
     this.stamps = new Int32Array(n);
   }
 
@@ -210,9 +211,8 @@ export class NavGrid {
         found = true;
         break;
       }
-      if (this.closed[cur] === 1 && this.stamps[cur] === stamp) continue;
-      this.closed[cur] = 1;
-      this.stamps[cur] = stamp;
+      if (this.closed[cur] === stamp) continue;
+      this.closed[cur] = stamp;
 
       const cx = cur % this.size;
       const cz = (cur / this.size) | 0;
